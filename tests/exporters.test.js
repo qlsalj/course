@@ -166,8 +166,27 @@ test('大号组件默认显示整周；Parameter 可以覆盖', async () => {
   assert.ok(!/11\/2 - 11\/8/.test(r.text));
 });
 
-test('小号组件只用一个弹性 spacer（多个会让 iOS 缩小第二节课的课名）', async () => {
-  const { widget } = await runWidgetScript(script, { family: 'small', now: new Date('2026-11-04T08:20:00'), screen: [440, 956] });
-  const flexible = widget.children.filter((c) => c.type === 'spacer' && c.length == null).length;
-  assert.equal(flexible, 1);
+test('小号组件：放得下的文字不允许缩放（否则 iOS 会为了分配高度把课名压小）', async () => {
+  const texts = (el, out = []) => { if (el.type === 'text') out.push(el); (el.children || []).forEach((c) => texts(c, out)); return out; };
+  const { widget } = await runWidgetScript(script, { family: 'small', now: new Date('2026-11-04T08:20:00') });
+  const all = texts(widget);
+  const name = all.find((t) => t.text === '数据结构');
+  assert.equal(name.minimumScaleFactor, 1);
+  assert.ok(all.filter((t) => t.text.length <= 8).every((t) => t.minimumScaleFactor === 1), '短文字都不应缩放');
+  // 很长的课名放不下一行时，才允许缩小
+  const long = await buildWidgetScript(template, sanitize({ ...data, courses: [{ name: '马克思主义基本原理概论与实践', room: 'A101', day: 3, start: 3, end: 4, weeks: [] }] }), { appUrl: 'https://x/' });
+  const r = await runWidgetScript(long, { family: 'small', now: new Date('2026-11-04T08:20:00') });
+  const ln = texts(r.widget).find((x) => x.text.startsWith('马克思'));
+  assert.ok(ln.minimumScaleFactor < 1);
+});
+
+test('小号组件按屏幕宽度判断文字是否放得下（SE 上更早缩小）', async () => {
+  const texts = (el, out = []) => { if (el.type === 'text') out.push(el); (el.children || []).forEach((c) => texts(c, out)); return out; };
+  const s2 = await buildWidgetScript(template, sanitize({ ...data, courses: [{ name: '计算机网络基础A', room: 'A101', day: 3, start: 3, end: 4, weeks: [] }] }), { appUrl: 'https://x/' });
+  const scaleOn = async (screen) => {
+    const { widget } = await runWidgetScript(s2, { family: 'small', now: new Date('2026-11-04T08:20:00'), screen });
+    return texts(widget).find((t) => t.text === '计算机网络基础A').minimumScaleFactor;
+  };
+  assert.ok((await scaleOn([375, 667])) < 1, 'SE（148pt）上放不下，应允许缩小');
+  assert.equal(await scaleOn([440, 956]), 1, 'Pro Max（170pt）上放得下，不缩放');
 });
