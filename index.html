@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>课表</title>
+  <meta name="description" content="无广告的课程表 PWA：教务系统导入、当前周次、本周课表、iOS 桌面小组件（Scriptable）">
+  <meta name="theme-color" content="#f5f6fa" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="课表">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <link rel="stylesheet" href="css/app.css">
+  <!-- 解析器是普通脚本（也会被注入到教务系统页面），需要先于模块加载 -->
+  <script src="jw/parsers.js"></script>
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <main id="view" aria-live="polite"></main>
+  <nav id="tabbar" class="tabbar" aria-label="主导航"></nav>
+  <div id="sheet-root"></div>
+  <div id="toast" role="status"></div>
+  <noscript>请启用 JavaScript 以使用课表。</noscript>
+</body>
+</html>
