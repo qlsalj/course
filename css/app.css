@@ -522,3 +522,5 @@ textarea.input { resize: vertical; }
 /* 导入方式折叠块 */
 .method { border-top: 0.5px solid var(--line); padding: 8px 0 2px; }
 .method > summary { font-weight: 600; cursor: pointer; padding: 4px 0; color: var(--accent); }
+.sub-method { margin: 8px 0 4px; padding-left: 4px; }
+.sub-method > summary { cursor: pointer; color: var(--muted); font-size: 14px; padding: 4px 0; }
