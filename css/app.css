@@ -368,8 +368,14 @@ textarea.input { resize: vertical; }
 .about p { margin: 4px 0; }
 
 .periods { display: grid; gap: 8px; }
-.period-row { display: grid; grid-template-columns: 64px 1fr auto 1fr 28px; gap: 8px; align-items: center; }
-.period-row b { font-size: 14px; font-weight: 600; }
+.period-row { display: grid; grid-template-columns: 58px minmax(0, 1fr) 10px minmax(0, 1fr) 30px; gap: 6px; align-items: center; }
+.period-row b { font-size: 14px; font-weight: 600; white-space: nowrap; }
+.period-row > span { text-align: center; color: var(--muted); }
+/* iOS 的 time 输入框有固有最小宽度，需要去掉原生外观才能缩小 */
+.period-row input[type=time] { -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; text-align: center; padding: 8px 4px; }
+.period-row input[type=time]::-webkit-date-and-time-value { text-align: center; }
+.period-del { width: 30px; height: 30px; border-radius: 50%; border: 0; background: var(--card-2); color: var(--muted); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+.period-del:active { background: var(--line); }
 .gen-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; }
 .gen-grid label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
 .gen-grid .input.num { width: 100%; }
@@ -512,3 +518,7 @@ textarea.input { resize: vertical; }
   text-align: center;
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* 导入方式折叠块 */
+.method { border-top: 0.5px solid var(--line); padding: 8px 0 2px; }
+.method > summary { font-weight: 600; cursor: pointer; padding: 4px 0; color: var(--accent); }

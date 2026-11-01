@@ -31,7 +31,7 @@ export async function parseImport(text, filename = '') {
   if (/<table[\s>]/i.test(raw) || /\.html?$/i.test(filename)) {
     const r = P.parseHtml(raw);
     if (!r.courses.length) throw new Error('没有在网页源码中找到课表表格');
-    return { source: r.source, courses: r.courses };
+    return { source: r.source, courses: r.courses, periodTimes: r.periodTimes };
   }
 
   // 5. CSV / TSV
@@ -43,7 +43,7 @@ export async function parseImport(text, filename = '') {
 function fromJson(obj) {
   // 导入助手输出
   if (obj && obj.type === 'course-pwa/import') {
-    return { source: obj.source || '教务系统', courses: obj.courses || [], semester: obj.semester };
+    return { source: obj.source || '教务系统', courses: obj.courses || [], semester: obj.semester, periodTimes: obj.periodTimes };
   }
   // 本应用的备份
   if (obj && Array.isArray(obj.courses) && (obj.periods || obj.startDate)) {

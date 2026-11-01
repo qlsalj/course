@@ -160,14 +160,33 @@ export async function readClipboard() {
   return navigator.clipboard.readText();
 }
 
-export function download(filename, text, mime = 'text/plain') {
+/**
+ * 保存文件。iOS 上（尤其是添加到主屏幕后）网页下载会提示「无法下载此文件」，
+ * 所以触屏设备优先调起系统分享面板（可选「存储到文件」、日历、微信等），电脑上用普通下载。
+ * @returns {Promise<'shared'|'downloaded'|'cancelled'>}
+ */
+export async function download(filename, text, mime = 'text/plain') {
   const blob = new Blob([text], { type: `${mime};charset=utf-8` });
+  const touch = window.matchMedia && matchMedia('(pointer: coarse)').matches;
+  if (touch && typeof File === 'function' && navigator.share) {
+    const file = new File([blob], filename, { type: mime });
+    if (!navigator.canShare || navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file] });
+        return 'shared';
+      } catch (e) {
+        if (e && e.name === 'AbortError') return 'cancelled';
+        // 其它错误：退回普通下载
+      }
+    }
+  }
   const url = URL.createObjectURL(blob);
   const a = h('a', { href: url, download: filename });
   document.body.appendChild(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
+  return 'downloaded';
 }
 
 export function readFile(file) {

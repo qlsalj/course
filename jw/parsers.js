@@ -337,13 +337,77 @@
   ];
   var JUNK_RE = /^(?:学分|课程号|课序号|教学班|选课|考核|课程性质|课程类别|总学时|学时|上课人数|备注|◆|★)/;
 
+  // 一段周次：1-8周,10-11周 / 3-18周(双) / 1-16(周) / 2-16(双周)
+  var WEEK_UNIT = '\\d+\\s*(?:-\\s*\\d+)?\\s*(?:\\(\\s*(?:单|双)?\\s*周\\s*\\)|周\\s*(?:\\(\\s*[单双]\\s*周?\\s*\\)|[单双]周?)?)?';
+  var WEEK_SEG_RE = new RegExp(WEEK_UNIT + '(?:\\s*[,，、]\\s*' + WEEK_UNIT + ')*', 'g');
+  /** 找到第一段真正的周次（必须含"周"，避免把课程名里的数字当成周次） */
+  function findWeekSeg(line) {
+    WEEK_SEG_RE.lastIndex = 0;
+    var m;
+    while ((m = WEEK_SEG_RE.exec(line))) {
+      if (/周/.test(m[0])) return m;
+      if (m[0].length === 0) WEEK_SEG_RE.lastIndex++;
+    }
+    return null;
+  }
+  // 紧跟其后的节次：(第5-8节) / [01-02节] / 第1,2节
+  var PERIOD_SEG_RE = /^\s*[(\[（【]?\s*第?\s*\d+(?:\s*[-,，~、]\s*\d+)*\s*小?节\s*[)\]）】]?/;
+  var PERSON_RE = /^[\u4e00-\u9fa5·]{2,5}(?:[,，、][\u4e00-\u9fa5·]{2,5})*$/;
+
+  /**
+   * 把"一行多个字段"的写法拆开，例如：
+   *   "计算机组成课程设计[01] 1-8周,10-11周 (第5-8节) 张志鹏 实验大楼 实309 机房"
+   *   -> ["计算机组成课程设计[01]", "1-8周,10-11周 (第5-8节)", "张志鹏", "实验大楼 实309 机房"]
+   */
+  // 周次后面紧跟的单双周标记：(单) / 单周 / |单周（老正方 "{第1-15周|单周}"）
+  var PARITY_SEG_RE = /^\s*[|｜]?\s*[(（]?\s*[单双]\s*周?\s*[)）]?/;
+  // 以节次或星期开头的前缀，如 "(1-2节)"、"周一第1,2节{第"、"星期三"
+  var TIME_PREFIX_RE = /^[\s(（\[【{]*(?:第?\s*\d+(?:\s*[-,，、~]\s*\d+)*\s*小?节|(?:星期|周|礼拜)[一二三四五六日天])/;
+  var LABEL_LINE_RE = /^[^:：\d]{1,8}[:：]/;
+  var LATIN_NAME_RE = /^[A-Za-z][A-Za-z.'\-]{1,30}$/;
+
+  function isPersonToken(tok) {
+    return (PERSON_RE.test(tok) || LATIN_NAME_RE.test(tok)) && !ROOM_RE.test(tok);
+  }
+
+  function explodeLines(lines) {
+    var out = [];
+    lines.forEach(function (line) {
+      // "教师：xxx"、"上课时间：第3-8周" 这类带标签的行交给标签逻辑处理，不拆
+      if (LABEL_LINE_RE.test(line)) { out.push(line); return; }
+      var m = findWeekSeg(line);
+      if (!m) { out.push(line); return; }
+      var prefix = clean(line.slice(0, m.index));
+      var weeks = m[0];
+      var after = line.slice(m.index + m[0].length);
+      var par = PARITY_SEG_RE.exec(after);
+      if (par && par[0].trim()) { weeks += par[0]; after = after.slice(par[0].length); }
+      var p = PERIOD_SEG_RE.exec(after);
+      if (p) { weeks += ' ' + clean(p[0]); after = after.slice(p[0].length); }
+      if (prefix) {
+        // 前缀以节次/星期开头（"(1-2节)1-16周"、"周一第1,2节{第1-16周}"）或只剩"第"等字符时并入周次，否则是课程名
+        if (TIME_PREFIX_RE.test(prefix) || !/[一-龥A-Za-z]{2}/.test(prefix.replace(/第/g, ''))) weeks = prefix + weeks;
+        else out.push(prefix);
+      }
+      out.push(clean(weeks));
+      var tail = clean(after.replace(/^[\s}|｜]+/, ''));
+      if (!tail) return;
+      var tokens = tail.split(' ');
+      if (tokens.length > 1 && isPersonToken(tokens[0])) {
+        out.push(tokens[0]);
+        out.push(tokens.slice(1).join(' '));
+      } else {
+        out.push(tail);
+      }
+    });
+    return out;
+  }
+
   // 解析单个课程块（文本行 + 可选的 DOM）
   function parseBlock(lines, el) {
     var c = { name: '', teacher: '', room: '', weeksText: '' };
-    // "编译原理 1-8周 黄老师 信息楼C201"：一行里用空格分隔
-    if (lines.length === 1 && / /.test(lines[0]) && WEEK_RE.test(lines[0])) {
-      lines = lines[0].split(' ').filter(Boolean);
-    }
+    var titled = el && el.querySelector ? el.querySelector('[title]') : null;
+    if (!titled) lines = explodeLines(lines);
     if (el && el.querySelectorAll) {
       // 强智：<font title="老师">；正方网页版：<span title="教师"> 等
       var titled = el.querySelectorAll('[title]');
@@ -374,7 +438,7 @@
     });
     var used = {};
     [c.name, c.teacher, c.room, c.weeksText].forEach(function (v) { if (v) used[v] = true; });
-    rest = rest.filter(function (l) { return !used[l] && !JUNK_RE.test(l); });
+    rest = rest.filter(function (l) { return !used[l] && !JUNK_RE.test(l) && !(PERIOD_SEG_RE.test(l) && !clean(l.replace(PERIOD_SEG_RE, ''))); });
     if (!c.name && rest.length) c.name = rest.shift();
     if (!c.weeksText) {
       for (var j = 0; j < rest.length; j++) {
@@ -392,7 +456,11 @@
       if (!c.teacher && l.length <= 12 && !/\d/.test(l)) { c.teacher = l; return; }
       if (!c.room) c.room = l;
     });
-    c.name = c.name.replace(/[◆★●■▲※☆]+/g, '').replace(/\s*\((?:[A-Z]*\d{4,}[^)]*)\)$/, '').trim();
+    c.name = c.name
+      .replace(/[◆★●■▲※☆]+/g, '')
+      .replace(/\s*\((?:[A-Z]*\d{4,}[^)]*)\)$/, '') // 课程代码 (MATH1001)
+      .replace(/\s*[\[【]\s*\d{1,6}\s*[\]】]$/, '') // 教学班号 [01] / [0101]
+      .trim();
     c.teacher = c.teacher.replace(/\s*\((?:讲师|教授|副教授|助教|未评级)\)/g, '').trim();
     return c;
   }
@@ -461,6 +529,7 @@
 
     // 每行对应的节次
     var rowPeriods = [];
+    var periodTimes = {};
     var anyNumbered = false;
     for (var r2 = headerRow + 1; r2 < grid.length; r2++) {
       var head = '';
@@ -474,6 +543,15 @@
       var p = parsePeriods(head) || parsePeriods(head.replace(/上午|下午|晚上|中午|\d{1,2}:\d{2}/g, ''), { loose: true });
       if (p) anyNumbered = true;
       rowPeriods[r2] = p;
+      // 行头里的上课时间，如 "第7节 (15:30~16:15)"、"1 08:00 08:45"
+      var tm = head.match(/(\d{1,2})[:：](\d{2})/g);
+      if (p && tm && tm.length >= 2) {
+        var hm = function (t) { var x = t.split(/[:：]/); return ('0' + parseInt(x[0], 10)).slice(-2) + ':' + x[1]; };
+        periodTimes[p.start] = periodTimes[p.start] || {};
+        periodTimes[p.start].start = hm(tm[0]);
+        periodTimes[p.end] = periodTimes[p.end] || {};
+        periodTimes[p.end].end = hm(tm[1]);
+      }
     }
     if (!anyNumbered) {
       var n = 1;
@@ -516,6 +594,7 @@
         });
       }
     });
+    out.periodTimes = anyNumbered ? periodTimes : {};
     return out;
   }
 
@@ -532,15 +611,17 @@
       .filter(function (x) { return x.s >= 6; })
       .sort(function (a, b) { return b.s - a.s; });
     var best = null;
+    var bestTimes = {};
     for (var i = 0; i < scored.length; i++) {
-      var courses = finalize(parseTable(scored[i].t));
-      if (courses.length && (!best || courses.length > best.length)) best = courses;
+      var raw = parseTable(scored[i].t);
+      var courses = finalize(raw);
+      if (courses.length && (!best || courses.length > best.length)) { best = courses; bestTimes = raw.periodTimes || {}; }
     }
     if (!best) return { courses: [], source: '' };
     var html = docs.map(function (d) { return d.documentElement ? d.documentElement.innerHTML.slice(0, 20000) : ''; }).join('');
     var source = /强智|jsxsd|kbcontent/.test(html) ? '强智教务' : /timetable_con|jwglxt|正方/.test(html) ? '正方教务（网页）' : /URP|urp/.test(html) ? 'URP 教务' : '网页表格';
     // 没有周次信息的课，默认全学期（留空，导入时补全）
-    return { courses: best, source: source };
+    return { courses: best, source: source, periodTimes: bestTimes };
   }
 
   /** 解析 HTML 字符串（PWA 中粘贴网页源码时使用） */
