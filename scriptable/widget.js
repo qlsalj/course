@@ -155,6 +155,23 @@ function addText(stack, str, size, color, weight, opts) {
   return t;
 }
 
+/** 估算文字宽度（pt）：中文按 1 个字号宽，其余按 0.58 个字号宽 */
+function textWidth(str, size) {
+  let w = 0;
+  for (const ch of String(str)) w += /[\u2e80-\u9fff\uff00-\uffef]/.test(ch) ? size : size * 0.58;
+  return w;
+}
+
+/**
+ * 只有放不下一行时才允许缩小字号。
+ * 原因：iOS 在高度紧张时会优先压缩"允许缩放"的文字，哪怕它横向放得下，
+ * 导致课名莫名变小；放得下的文字就不给它缩放的机会。
+ */
+function scaleToFit(str, size, width, min) {
+  const need = textWidth(str, size);
+  return need <= width ? 1 : Math.max(min, width / need);
+}
+
 function hRow(parent) {
   const s = parent.addStack();
   s.layoutHorizontally();
@@ -173,13 +190,14 @@ function lessonRow(parent, l, o) {
   row.addSpacer(7);
   const col = row.addStack();
   col.layoutVertically();
-  addText(col, l.name, o.nameSize, THEME.text, "semibold", { opacity: past ? 0.45 : 1 });
+  const fitW = o.textWidth || 999;
+  addText(col, l.name, o.nameSize, THEME.text, "semibold", { opacity: past ? 0.45 : 1, scale: o.textWidth ? scaleToFit(l.name, o.nameSize, fitW, 0.75) : 0.75 });
   col.addSpacer(1);
   // 小号组件空间有限：只显示上课时间 + 教室
   const meta = o.compact
     ? `${l.startText}` + (l.room ? ` ${l.room}` : "")
     : `${l.startText}-${l.endText}` + (l.room ? ` · ${l.room}` : "");
-  addText(col, meta, o.metaSize, THEME.secondary, "regular", { opacity: past ? 0.6 : 1, scale: 0.7 });
+  addText(col, meta, o.metaSize, THEME.secondary, "regular", { opacity: past ? 0.6 : 1, scale: o.textWidth ? scaleToFit(meta, o.metaSize, fitW, 0.7) : 0.7 });
   row.addSpacer();
   if (o.status && !past) {
     if (live) {
@@ -203,9 +221,13 @@ function emptyMessage(parent, size) {
 
 function header(w, big) {
   const row = hRow(w);
-  addText(row, `${today.getMonth() + 1}月${today.getDate()}日 ${DAY_NAMES[weekday(today)]}`, big ? 15 : 13, THEME.text, "bold");
+  const date = `${today.getMonth() + 1}月${today.getDate()}日 ${DAY_NAMES[weekday(today)]}`;
+  const ds = big ? 15 : 13;
+  addText(row, date, ds, THEME.text, "bold", { scale: scaleToFit(date, ds, big ? 220 : 88, 0.75) });
   row.addSpacer();
-  addText(row, weekLabel(), big ? 13 : 12, THEME.accent, "semibold");
+  const wl = weekLabel();
+  const ws = big ? 13 : 12;
+  addText(row, wl, ws, THEME.accent, "semibold", { scale: scaleToFit(wl, ws, big ? 100 : 44, 0.75) });
   return row;
 }
 
@@ -234,28 +256,23 @@ function buildSmall(w) {
     sectionLabel(w, focus.label);
     w.addSpacer(4);
   }
-  // 课程之间均匀留白，避免空白都堆在底部。
-  // 注意不要用多个弹性 spacer：iOS 会和可缩放的文字抢高度，把第二节课的课名莫名缩小。
-  // 所以按组件高度算出固定间距，只在最后保留一个弹性 spacer。
+  // 课程之间、课程和底部之间用弹性间距均匀铺开。
+  // 文字只在横向放不下时才允许缩小（见 scaleToFit），所以 iOS 不会为了分配高度去压缩课名。
   const shown = focus.lessons.slice(0, 2);
-  const ROW = 38; // 中文字体行高比字号大，按实际渲染高度估算
-  const used = 14 + 12 + 18 + 8 + (focus.offset !== 0 ? 17 : 0) + shown.length * ROW + 15;
-  const gap = Math.max(6, Math.min(18, Math.floor((smallWidgetSize() - used) / shown.length)));
   shown.forEach((l, i) => {
-    if (i) w.addSpacer(gap);
-    lessonRow(w, l, { height: 34, nameSize: 15, metaSize: 12, compact: true });
+    if (i) w.addSpacer();
+    lessonRow(w, l, { height: 34, nameSize: 15, metaSize: 12, compact: true, textWidth: 118 });
   });
-  w.addSpacer(gap);
   w.addSpacer();
   const foot = hRow(w);
   if (focus.offset === 0 && current) {
-    addText(foot, `上课中 · ${current.endText} 下课`, 11, THEME.live, "medium");
+    addText(foot, `上课中 · ${current.endText} 下课`, 11, THEME.live, "medium", { scale: 1 });
   } else if (focus.offset === 0 && minutesUntil(remaining[0].startAt) < 60) {
-    addText(foot, `${untilText(remaining[0].startAt)}上课`, 11, THEME.accent, "medium");
+    addText(foot, `${untilText(remaining[0].startAt)}上课`, 11, THEME.accent, "medium", { scale: 1 });
   } else if (focus.offset === 0) {
-    addText(foot, remaining.length === 1 ? "今天的最后一节课" : `今天还剩 ${remaining.length} 节`, 11, THEME.secondary);
+    addText(foot, remaining.length === 1 ? "今天的最后一节课" : `今天还剩 ${remaining.length} 节`, 11, THEME.secondary, "regular", { scale: 1 });
   } else {
-    addText(foot, `${focus.label}共 ${focus.lessons.length} 节`, 11, THEME.secondary);
+    addText(foot, `${focus.label}共 ${focus.lessons.length} 节`, 11, THEME.secondary, "regular", { scale: 1 });
   }
   foot.addSpacer();
 }
@@ -322,18 +339,6 @@ function largeWidgetSize() {
   if (h >= 844) return { w: 338, h: 354 }; // 标准尺寸
   if (h >= 812) return { w: 329, h: 345 };
   return { w: 321, h: 324 };                // SE 等小屏
-}
-
-// 小号组件的高度（pt），同样按屏幕高度对照 Apple 公布的尺寸保守估算
-function smallWidgetSize() {
-  let h = 844;
-  try { h = Device.screenSize().height; } catch (e) { /* 预览环境 */ }
-  if (h >= 926) return 170;
-  if (h >= 896) return 169;
-  if (h >= 874) return 162;
-  if (h >= 844) return 158;
-  if (h >= 812) return 155;
-  return 148;
 }
 
 function buildLarge(w) {
