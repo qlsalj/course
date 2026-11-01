@@ -190,3 +190,28 @@ test('小号组件按屏幕宽度判断文字是否放得下（SE 上更早缩�
   assert.ok((await scaleOn([375, 667])) < 1, 'SE（148pt）上放不下，应允许缩小');
   assert.equal(await scaleOn([440, 956]), 1, 'Pro Max（170pt）上放得下，不缩放');
 });
+
+test('倒计时用系统实时更新的相对时间，而不是写死的文字', async () => {
+  const dates = (el, out = []) => { if (el.type === 'date') out.push(el); (el.children || []).forEach((c) => dates(c, out)); return out; };
+  const at = new Date('2026-11-04T09:41:00'); // 周三 10:00 数据结构，还有 19 分钟
+  for (const family of ['small', 'medium', 'large', 'accessoryRectangular']) {
+    const { widget } = await runWidgetScript(script, { family, now: at });
+    const d = dates(widget).find((x) => x.style === 'relative');
+    assert.ok(d, `${family} 应包含相对时间`);
+    assert.equal(d.date.getHours(), 10);
+    assert.equal(d.date.getMinutes(), 0);
+    const text = widgetText(widget, at);
+    assert.ok(!/分钟后/.test(text), `${family} 不应有写死的「分钟后」`);
+    assert.match(text, /还有 *19分钟/);
+  }
+});
+
+test('课程行的倒计时只在一小时内出现（避免「还有 2小时 19分钟」放不下）', async () => {
+  const dates = (el, out = []) => { if (el.type === 'date') out.push(el); (el.children || []).forEach((c) => dates(c, out)); return out; };
+  const far = await runWidgetScript(script, { family: 'medium', now: new Date('2026-11-04T07:41:00') }); // 距 10:00 还有 2 小时 19 分
+  assert.equal(dates(far.widget).length, 0);
+  const near = await runWidgetScript(script, { family: 'medium', now: new Date('2026-11-04T09:41:00') });
+  const d = dates(near.widget);
+  assert.equal(d.length, 1);
+  assert.ok(d[0].minimumScaleFactor < 1);
+});
