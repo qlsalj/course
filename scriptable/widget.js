@@ -18,6 +18,8 @@
 
 const APP_URL = /*@APP_URL*/"";
 const OPEN_PAGE = /*@PAGE*/"today";
+// 大号组件默认显示什么："today" 今日课程 / "week" 整周课表（单个组件可用 Parameter 覆盖）
+const LARGE_MODE = /*@LARGE*/"today";
 const GENERATED_AT = /*@GENERATED*/"";
 const SNAPSHOT = /*@SNAPSHOT*/"";
 const DATA = /*@DATA*/null;
@@ -550,7 +552,11 @@ async function createWidget(family, param) {
   const w = new ListWidget();
   const accessory = String(family).startsWith("accessory");
   if (!accessory) w.backgroundColor = THEME.background;
-  const page = PARAM === "week" ? "week" : OPEN_PAGE;
+  const isLarge = family === "large" || family === "extraLarge";
+  // Parameter 优先：week/周 → 整周；today/今天 → 今日；否则用导出时选的默认值
+  const weekMode = isLarge && (PARAM === "week" || PARAM === "周" ||
+    (LARGE_MODE === "week" && !["today", "今天", "tomorrow", "明天"].includes(PARAM)));
+  const page = weekMode ? "week" : OPEN_PAGE;
   if (APP_URL) w.url = `${APP_URL}#/${page}` + (SNAPSHOT ? `?s=${SNAPSHOT}` : "");
   w.refreshAfterDate = nextRefresh();
   if (!DATA) {
@@ -561,7 +567,7 @@ async function createWidget(family, param) {
     case "small": buildSmall(w); break;
     case "large":
     case "extraLarge":
-      if (PARAM === "week" || PARAM === "周") buildWeek(w); else buildLarge(w);
+      if (weekMode) buildWeek(w); else buildLarge(w);
       break;
     case "accessoryRectangular": buildRectangular(w); break;
     case "accessoryInline": buildInline(w); break;
@@ -587,6 +593,9 @@ if (config.runsInWidget) {
     Safari.open(`${APP_URL}#/${OPEN_PAGE}` + (SNAPSHOT ? `?s=${SNAPSHOT}` : ""));
   } else if (choice === "week") {
     const w = await createWidget("large", "week");
+    await w.presentLarge();
+  } else if (choice === "large") {
+    const w = await createWidget("large", "today");
     await w.presentLarge();
   } else if (choice) {
     const w = await createWidget(choice);

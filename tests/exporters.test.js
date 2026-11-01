@@ -148,3 +148,20 @@ test('大号组件按屏幕大小放满课程（大屏多显示明天的课）',
   assert.ok(big > normal || big === 3, `大屏应比标准屏显示更多，实际 ${big} vs ${normal}`);
   assert.ok(small <= normal);
 });
+
+test('大号组件默认显示整周；Parameter 可以覆盖', async () => {
+  const weekScript = await buildWidgetScript(template, data, { appUrl: 'https://example.github.io/course/', largeMode: 'week' });
+  const run = async (code, parameter) => {
+    const { widget } = await runWidgetScript(code, { family: 'large', parameter, now: new Date('2026-11-04T10:20:00') });
+    return { text: widgetText(widget), url: widget.url };
+  };
+  let r = await run(weekScript, '');
+  assert.match(r.text, /11\/2 - 11\/8/, '默认应为整周视图');
+  assert.match(r.url, /#\/week\?/);
+  r = await run(weekScript, 'today');
+  assert.match(r.text, /还剩 3 节/, 'Parameter today 应显示今日课程');
+  r = await run(script, 'week');
+  assert.match(r.text, /11\/2 - 11\/8/, '默认今日的脚本，Parameter week 仍显示整周');
+  r = await run(script, '');
+  assert.ok(!/11\/2 - 11\/8/.test(r.text));
+});

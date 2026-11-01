@@ -35,6 +35,15 @@ export function openWidgetSheet() {
     h('option', { value: 'today', selected: app.prefs.widgetPage === 'today' }, '今日课程'),
     h('option', { value: 'week', selected: app.prefs.widgetPage === 'week' }, '本周课表')
   );
+  const largeSel = h('select', { class: 'input inline' },
+    h('option', { value: 'today', selected: app.prefs.widgetLarge !== 'week' }, '今日课程'),
+    h('option', { value: 'week', selected: app.prefs.widgetLarge === 'week' }, '整周课表')
+  );
+  largeSel.addEventListener('change', async () => {
+    app.prefs.widgetLarge = largeSel.value;
+    savePrefs(app.prefs);
+    await generate();
+  });
   pageSel.addEventListener('change', async () => {
     app.prefs.widgetPage = pageSel.value;
     savePrefs(app.prefs);
@@ -78,7 +87,7 @@ export function openWidgetSheet() {
   async function generate() {
     try {
       const tpl = await loadTemplate();
-      script = await buildWidgetScript(tpl, app.data, { appUrl: app.baseUrl, page: app.prefs.widgetPage });
+      script = await buildWidgetScript(tpl, app.data, { appUrl: app.baseUrl, page: app.prefs.widgetPage, largeMode: app.prefs.widgetLarge });
       codeBox.value = script;
       copyBtn.disabled = false;
       await preview();
@@ -106,6 +115,7 @@ export function openWidgetSheet() {
       stage,
       h('div', { class: 'row-actions center' }, darkBtn),
       h('label', { class: 'field inline-field' }, h('span', null, '点击小组件打开'), pageSel),
+      h('label', { class: 'field inline-field' }, h('span', null, '大号组件默认显示'), largeSel),
       copyBtn,
       h('button', { class: 'btn block', onclick: () => script && download('课表小组件.js', script, 'text/javascript') }, '下载 .js 文件'),
       h('section', { class: 'card' },
@@ -114,7 +124,8 @@ export function openWidgetSheet() {
           h('li', null, '在 App Store 安装免费的 ', h('a', { href: 'https://apps.apple.com/app/scriptable/id1405459188', target: '_blank', rel: 'noopener' }, 'Scriptable'), '。'),
           h('li', null, '点上面的「复制 Scriptable 脚本」，打开 Scriptable，点右上角 ＋ 新建脚本，粘贴，点左上角 Done 保存（可以点标题改名为「课表」）。'),
           h('li', null, '回到桌面，长按空白处 → 左上角 ＋ → 搜索 Scriptable → 选择小/中/大号组件添加。'),
-          h('li', null, '长按刚添加的组件 →「编辑小组件」→ Script 选择刚才的脚本。大号组件的 Parameter 填 ', h('code', null, 'week'), ' 可显示整周课表，填 ', h('code', null, 'tomorrow'), ' 显示明天。锁屏组件同理。'),
+          h('li', null, '长按刚添加的组件 →「编辑小组件」→ Script 选择刚才的脚本。锁屏组件同理（圆形显示周数，长条显示下一节课）。'),
+          h('li', null, h('b', null, '同时要「今日」和「整周」？'), '不用新建脚本：在桌面添加两个大号 Scriptable 组件，都选这个脚本，其中一个的 Parameter 填 ', h('code', null, 'week'), '，它就显示整周课表。Parameter 填 ', h('code', null, 'today'), ' 强制显示今日课程，填 ', h('code', null, 'tomorrow'), ' 显示明天。'),
           h('li', null, '点击小组件会用 Safari 打开本应用并自动带上课表数据（iOS 限制：网页无法直接唤起已添加到主屏幕的 Web App）。')
         ),
         h('p', { class: 'muted small' }, '⚠️ 小组件里的课表是导出那一刻的副本。修改课表后，需要重新复制脚本、在 Scriptable 中覆盖原内容。')
