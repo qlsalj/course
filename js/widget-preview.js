@@ -149,7 +149,7 @@ function fixedDate(nowMs) {
   };
 }
 
-export function createScriptableEnv({ family = 'medium', parameter = '', now = Date.now() } = {}) {
+export function createScriptableEnv({ family = 'medium', parameter = '', now = Date.now(), screen = [390, 844] } = {}) {
   const result = { widget: null, opened: [], logs: [] };
   const globals = {
     ListWidget, WidgetStack, WidgetText, WidgetDate, WidgetSpacer, WidgetImage,
@@ -170,7 +170,7 @@ export function createScriptableEnv({ family = 'medium', parameter = '', now = D
     },
     Safari: { open(url) { result.opened.push(url); }, openInApp: async (url) => { result.opened.push(url); } },
     Pasteboard: { copy() {}, paste() { return ''; } },
-    Device: { locale: () => 'zh_CN', language: () => 'zh', isUsingDarkAppearance: () => false, screenSize: () => new Size(390, 844) },
+    Device: { locale: () => 'zh_CN', language: () => 'zh', isUsingDarkAppearance: () => false, screenSize: () => new Size(screen[0], screen[1]) },
     Alert: class { addAction() {} addCancelAction() {} async presentSheet() { return -1; } async presentAlert() { return -1; } },
     console: {
       log: (...a) => result.logs.push(a.join(' ')),

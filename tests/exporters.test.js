@@ -27,8 +27,8 @@ test('CSV 导出可再导入', () => {
 
 const script = await buildWidgetScript(template, data, { appUrl: 'https://example.github.io/course/' });
 
-async function render(time, family, parameter = '') {
-  const { widget } = await runWidgetScript(script, { family, parameter, now: new Date(time) });
+async function render(time, family, parameter = '', screen) {
+  const { widget } = await runWidgetScript(script, { family, parameter, now: new Date(time), screen });
   assert.ok(widget, '应调用 Script.setWidget');
   return { widget, text: widgetText(widget) };
 }
@@ -114,4 +114,37 @@ test('已经上完的课不再显示在组件里（小 / 中 / 大）', async ()
   const { text } = await render('2026-11-04T16:00:00', 'large');
   assert.match(text, /还剩 1 节/);
   assert.match(text, /已上完 2 节/);
+});
+
+test('小号组件底部：只剩一节时才显示"最后一节课"', async () => {
+  // 周三 12:00：还剩 14:00、19:00 两节
+  let r = await render('2026-11-04T12:00:00', 'small');
+  assert.match(r.text, /今天还剩 2 节/);
+  assert.ok(!/最后一节/.test(r.text));
+  // 周三 16:00：只剩 19:00 一节
+  r = await render('2026-11-04T16:00:00', 'small');
+  assert.match(r.text, /今天的最后一节课/);
+});
+
+test('大号组件按屏幕大小放满课程（大屏多显示明天的课）', async () => {
+  const busy = sanitize(JSON.parse(fixture('userlike.json')));
+  // 周一再加两节，凑成今天 4 节 + 明天 3 节
+  const extra = await buildWidgetScript(template, sanitize({
+    ...busy,
+    courses: busy.courses.concat(
+      { name: '软件工程', room: '实验大楼 实510', day: 2, start: 1, end: 2, weeks: [] },
+      { name: '编译原理', room: '教学楼 A305', day: 2, start: 3, end: 4, weeks: [] }
+    )
+  }), { appUrl: 'https://example.github.io/course/' });
+  const count = async (screen) => {
+    const { widget } = await runWidgetScript(extra, { family: 'large', now: new Date('2026-11-02T02:10:00'), screen });
+    const t = widgetText(widget);
+    return ['计算机组成课程设计', '软件工程', '编译原理'].filter((n) => t.includes(n)).length;
+  };
+  const small = await count([375, 667]);
+  const normal = await count([390, 844]);
+  const big = await count([440, 956]);
+  assert.ok(normal >= 2, `标准屏应显示至少 2 节明天的课，实际 ${normal}`);
+  assert.ok(big > normal || big === 3, `大屏应比标准屏显示更多，实际 ${big} vs ${normal}`);
+  assert.ok(small <= normal);
 });
