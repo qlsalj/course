@@ -140,7 +140,8 @@
       source: result.source,
       semester: result.semester || '',
       from: location.host,
-      courses: courses
+      courses: courses,
+      periodTimes: result.periodTimes || {}
     });
     var names = {};
     courses.forEach(function (c) { names[c.name] = true; });

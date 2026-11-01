@@ -65,6 +65,15 @@ await step('网页课表解析（强智 / 正方网页 / 通用表格 / 课程�
     '数据结构|李华|教学楼 A201|3|1|2|4-18周(双)',
     '计算机组成课程设计|张志鹏|实验大楼 实309 机房|5|5|8|1-8,10-11周'
   ]);
+  // 行头里的上课时间
+  assert.deepEqual(await page.evaluate((h) => CourseParsers.parseHtml(h).periodTimes, fixture('bracket-class.html')), {
+    1: { start: '08:00', end: '08:45' },
+    2: { start: '08:55', end: '09:40' },
+    3: { start: '10:00', end: '10:45' },
+    4: { start: '10:55', end: '11:40' },
+    5: { start: '14:00', end: '14:45' },
+    7: { start: '15:30', end: '16:15' }
+  });
   assert.deepEqual(await parse(fixture('qiangzhi.html')), [
     '高等数学|李明|教一101|1|1|2|1-16周',
     '大学物理|孙伟|理科楼201|2|3|4|2-16周(双)',
@@ -83,6 +92,21 @@ await step('网页课表解析（强智 / 正方网页 / 通用表格 / 课程�
     '计算机网络|林老师|信息楼A101|4|1|2|1-12周',
     '形势与政策|何老师|大礼堂|5|3|3|5周'
   ]);
+  await page.context().close();
+});
+
+await step('单元格各种写法（标签、英文教师、课程名含"节"、|单周、只有地点）', async () => {
+  const page = await newPage();
+  await page.goto(APP);
+  const cell = (lines) => page.evaluate((h) => CourseParsers.parseHtml(h).courses.map((c) =>
+    [c.name, c.teacher, c.room, CourseParsers.formatWeeks(c.weeks)].join('|')).join(';'),
+  `<table><tr><th>节次</th><th>周一</th><th>周二</th><th>周三</th><th>周四</th><th>周五</th></tr><tr><td>第1节</td><td>${lines.join('<br>')}</td><td></td><td></td><td></td><td></td></tr><tr><td>第2节</td><td></td><td></td><td></td><td></td><td></td></tr></table>`);
+  assert.equal(await cell(['数据库原理', '教师：王五', '上课时间：第3-8周', '地点：A101']), '数据库原理|王五|A101|3-8周');
+  assert.equal(await cell(['数据库原理', '周次：(1-16周)', '王五', 'A101']), '数据库原理|王五|A101|1-16周');
+  assert.equal(await cell(['编译原理 1-8周 Smith 信息楼C201']), '编译原理|Smith|信息楼C201|1-8周');
+  assert.equal(await cell(['节能技术 1-16周 李明 教一101']), '节能技术|李明|教一101|1-16周');
+  assert.equal(await cell(['高等数学', '周一第1,2节{第1-15周|单周}', '张三', 'B202']), '高等数学|张三|B202|1-15周(单)');
+  assert.equal(await cell(['电路实验[02] 2-9周 实验大楼 实309']), '电路实验||实验大楼 实309|2-9周');
   await page.context().close();
 });
 

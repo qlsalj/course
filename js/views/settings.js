@@ -1,5 +1,5 @@
 import { app } from '../context.js';
-import { h, icon, openSheet, toast, confirmDialog, copyText, download } from '../ui.js';
+import { h, icon, icons, openSheet, toast, confirmDialog, copyText, download } from '../ui.js';
 import { currentWeek, sanitize } from '../store.js';
 import { fromMinutes, mondayOf, parseDate, startDateForCurrentWeek, formatDate, toMinutes } from '../time.js';
 import { exportCsv, exportIcs, exportJson, shareUrl } from '../exporters.js';
@@ -72,7 +72,10 @@ export function renderSettings() {
           toast((await copyText(url)) ? '链接已复制' : '复制失败');
         }
       }),
-      row('导出到系统日历', h('span', { class: 'muted' }, '.ics'), { onclick: () => download(`${d.name}-${stamp}.ics`, exportIcs(d), 'text/calendar') }),
+      row('导出到系统日历', h('span', { class: 'muted' }, '.ics'), {
+        hint: 'iPhone：在分享面板选「存储到文件」，再到「文件」App 打开它，点「添加全部」',
+        onclick: () => download(`${d.name}-${stamp}.ics`, exportIcs(d), 'text/calendar')
+      }),
       row('备份为 JSON', null, { onclick: () => download(`${d.name}-${stamp}.json`, exportJson(d), 'application/json') }),
       row('导出 CSV', h('span', { class: 'muted' }, 'WakeUp 模板格式'), { onclick: () => download(`${d.name}-${stamp}.csv`, exportCsv(d), 'text/csv') })
     ),
@@ -118,7 +121,7 @@ function openPeriodsEditor() {
       e.addEventListener('change', () => { p.end = e.value; });
       return h('div', { class: 'period-row' },
         h('b', null, `第 ${i + 1} 节`), s, h('span', null, '–'), e,
-        h('button', { class: 'icon-btn small', 'aria-label': '删除', onclick: () => { periods.splice(i, 1); draw(); }, html: '&times;' })
+        h('button', { class: 'period-del', 'aria-label': `删除第 ${i + 1} 节`, onclick: () => { periods.splice(i, 1); draw(); }, html: icons.close })
       );
     }));
   }

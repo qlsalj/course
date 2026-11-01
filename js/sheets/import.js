@@ -112,6 +112,11 @@ export function openImportConfirm(result) {
   const d = app.data;
   const courses = result.courses.map((c) => sanitizeCourse({ ...c, id: uid() })).filter(Boolean);
   const hasSettings = !!(result.settings && Object.keys(result.settings).length);
+  // 教务课表行头里识别到的上课时间（可能只有部分节次）
+  const times = Object.entries(result.periodTimes || {})
+    .map(([n, t]) => [parseInt(n, 10), t])
+    .filter(([n, t]) => n >= 1 && n <= 30 && t && (/^\d{2}:\d{2}$/.test(t.start) || /^\d{2}:\d{2}$/.test(t.end)));
+  const useTimes = h('input', { type: 'checkbox', checked: times.length > 0 });
   const byName = new Map();
   courses.forEach((c) => { if (!byName.has(c.name)) byName.set(c.name, []); byName.get(c.name).push(c); });
 
@@ -143,6 +148,7 @@ export function openImportConfirm(result) {
           h('label', null, appendRadio, ' 追加到现有课表')
         ) : null,
         hasSettings ? h('label', { class: 'check' }, useSettings, ' 同时导入作息时间、开学日期等设置') : null,
+        times.length ? h('label', { class: 'check' }, useTimes, ` 用课表中的上课时间更新作息时间（识别到 ${times.length} 节）`) : null,
         weekRow,
         h('p', { class: 'muted small' }, '导入后可以在「设置」里调整开学日期和作息时间，在「课表」里修改单门课程。')
       )
@@ -171,6 +177,15 @@ export function openImportConfirm(result) {
         const s1 = hh * 60 + mm + 10;
         const fmt = (m) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
         data.periods.push({ start: fmt(s1), end: fmt(s1 + 45) });
+      }
+      if (useTimes.checked && times.length) {
+        times.forEach(([n, t]) => {
+          while (data.periods.length < n) data.periods.push({ ...data.periods[data.periods.length - 1] });
+          const p = { ...data.periods[n - 1] };
+          if (/^\d{2}:\d{2}$/.test(t.start)) p.start = t.start;
+          if (/^\d{2}:\d{2}$/.test(t.end)) p.end = t.end;
+          data.periods[n - 1] = p;
+        });
       }
       assignColors(data.courses);
     });

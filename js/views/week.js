@@ -74,7 +74,7 @@ export function renderWeek() {
     const isToday = diffDays(date, today) === 0;
     grid.appendChild(h('div', { class: `day-head${isToday ? ' today' : ''}`, style: { gridColumn: i + 2 } },
       h('b', null, DAY_NAMES[day]),
-      h('span', null, date.getDate() === 1 ? `${date.getMonth() + 1}月` : `${date.getMonth() + 1}/${date.getDate()}`)
+      h('span', null, `${date.getMonth() + 1}/${date.getDate()}`)
     ));
   });
   // 节次列
