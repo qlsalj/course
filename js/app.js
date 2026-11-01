@@ -5,7 +5,7 @@ import { decodeData, decodePlainB64 } from './share.js';
 import { renderToday } from './views/today.js';
 import { renderWeek, setViewWeek } from './views/week.js';
 import { renderSettings } from './views/settings.js';
-import { openImportSheet, handleImportText } from './sheets/import.js';
+import { openImportSheet, handleImportText, openImportConfirm } from './sheets/import.js';
 import { openWidgetSheet } from './sheets/widget.js';
 
 const TABS = [
@@ -74,11 +74,23 @@ async function handleIncoming() {
     }
     const snap = sanitize(await decodeData(params.s));
     const local = app.data;
-    if (!local.courses.length || snap.updatedAt > local.updatedAt) {
-      // 小组件里的数据更新（或本机没有数据）：直接采用
-      const hadLocal = local.courses.length > 0;
+    if (!local.courses.length) {
+      // 本机没有课表（比如小组件第一次在 Safari 中打开）：直接采用
       app.data = save(snap, { touch: false });
-      if (hadLocal) toast('已同步为小组件中的最新课表');
+    } else if (snap.id !== local.id) {
+      // 别人分享的课表（或另一份课表）：绝不静默覆盖，交给用户确认
+      openImportConfirm({
+        source: `分享的课表「${snap.name}」`,
+        courses: snap.courses,
+        settings: {
+          name: snap.name, startDate: snap.startDate, totalWeeks: snap.totalWeeks, periods: snap.periods,
+          showWeekend: snap.showWeekend, showOtherWeeks: snap.showOtherWeeks
+        }
+      });
+    } else if (snap.updatedAt > local.updatedAt) {
+      // 同一份课表，小组件里的版本更新：同步
+      app.data = save(snap, { touch: false });
+      toast('已同步为小组件中的最新课表');
     } else if (snap.updatedAt < local.updatedAt) {
       toast('提示：小组件里的课表比本机旧，修改课表后记得重新导出小组件', 4000);
     }

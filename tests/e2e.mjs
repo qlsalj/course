@@ -108,6 +108,31 @@ await step('点击小组件链接：在没有数据的浏览器中自动带上�
   await page.context().close();
 });
 
+await step('别人分享的课表不会覆盖本机课表；同一份课表的新版本会同步', async () => {
+  const page = await newPage();
+  await page.goto(APP);
+  const mine = { ...JSON.parse(fixture('demo.json')), id: 'mine-0001', updatedAt: 1000 };
+  await page.evaluate((d) => localStorage.setItem('course-pwa:data:v1', JSON.stringify(d)), mine);
+  const link = (obj) => page.evaluate(async (o) => {
+    const { shareUrl } = await import('./js/exporters.js');
+    return shareUrl(location.origin + '/', o, 'week');
+  }, obj);
+  const friend = { ...mine, id: 'friend-001', name: '朋友的课表', updatedAt: 9e12, courses: mine.courses.slice(0, 2) };
+  const open = async (obj, v) => page.goto(`${APP}index.html?v=${v}#${(await link(obj)).split('#')[1]}`);
+  await open(friend, 1);
+  await page.waitForSelector('.import-confirm');
+  let saved = await page.evaluate(() => JSON.parse(localStorage.getItem('course-pwa:data:v1')));
+  assert.equal(saved.courses.length, mine.courses.length, '不应静默覆盖');
+  assert.equal(saved.id, 'mine-0001');
+
+  const newer = { ...mine, updatedAt: 9e12, courses: mine.courses.slice(0, 3) };
+  await open(newer, 2);
+  await page.waitForSelector('.page.week .course');
+  saved = await page.evaluate(() => JSON.parse(localStorage.getItem('course-pwa:data:v1')));
+  assert.equal(saved.courses.length, 3, '同一份课表的新版本应同步');
+  await page.context().close();
+});
+
 await step('手动添加课程', async () => {
   const page = await newPage();
   await page.goto(`${APP}#/week`);

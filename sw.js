@@ -1,6 +1,8 @@
 // Service Worker：离线可用。
 // 策略：网络优先（保证总是拿到最新版本），网络不可用或超时时使用缓存。
-const CACHE = 'course-pwa-v1';
+// 缓存名带上作用域：同一域名下（如 xxx.github.io）的其它应用或其它部署互不影响
+const CACHE_PREFIX = 'course-pwa-';
+const CACHE = `${CACHE_PREFIX}v1@${self.registration.scope}`;
 const ASSETS = [
   './',
   'index.html',
@@ -37,7 +39,10 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      // 只清理本应用、本作用域的旧版本缓存
+      .then((keys) => Promise.all(keys
+        .filter((k) => k !== CACHE && k.startsWith(CACHE_PREFIX) && k.endsWith(`@${self.registration.scope}`))
+        .map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });

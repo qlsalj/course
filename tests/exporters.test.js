@@ -85,3 +85,21 @@ test('refreshAfterDate 指向下一个上下课时间点', async () => {
   assert.equal(d.getHours(), 14);
   assert.equal(d.getMinutes(), 0);
 });
+
+test('CSV：单双周混合的周次导出后再导入不丢周', async () => {
+  const { exportCsv: ex, csvWeeks } = await import('../js/exporters.js');
+  const weeks = [1, 2, 3, 4, 6, 8, 10, 12, 14, 16];
+  assert.equal(csvWeeks(weeks), '1-4,6,8,10,12,14,16');
+  assert.equal(csvWeeks([1, 3, 5, 7]), '1-7单');
+  const d = sanitize({ ...data, courses: [{ name: 'X', day: 1, start: 1, end: 2, weeks }, { name: 'Y', day: 2, start: 1, end: 2, weeks: [2, 4, 6] }] });
+  const back = parseCsv(ex(d).replace(/^﻿/, ''));
+  assert.deepEqual(back.courses.find((c) => c.name === 'X').weeks, weeks);
+  assert.deepEqual(back.courses.find((c) => c.name === 'Y').weeks, [2, 4, 6]);
+});
+
+test('ICS：不导出学期总周数之外的周', () => {
+  const d = sanitize({ ...data, totalWeeks: 10 });
+  const ics = exportIcs(d);
+  assert.ok(!/-w1[1-9]@/.test(ics));
+  assert.match(ics, /-w10@/);
+});

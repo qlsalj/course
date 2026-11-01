@@ -8,6 +8,26 @@ export function exportJson(data) {
   return JSON.stringify({ ...data, exportedAt: new Date().toISOString() }, null, 2);
 }
 
+/**
+ * CSV 中的周次：纯单/双周写成 "1-15单"，其余写成不含单双标记的区间列表（如 "1-4,6,8,10"），
+ * 避免 "1-4,6-16(双)" 这种在重新导入时会被理解成整体双周的写法
+ */
+export function csvWeeks(weeks) {
+  const w = [...weeks].sort((a, b) => a - b);
+  if (!w.length) return '';
+  if (w.length >= 3 && w.every((x, i) => i === 0 || x - w[i - 1] === 2)) {
+    return `${w[0]}-${w[w.length - 1]}${w[0] % 2 ? '单' : '双'}`;
+  }
+  const out = [];
+  for (let i = 0; i < w.length; i++) {
+    let j = i;
+    while (j + 1 < w.length && w[j + 1] === w[j] + 1) j++;
+    out.push(i === j ? String(w[i]) : `${w[i]}-${w[j]}`);
+    i = j;
+  }
+  return out.join(',');
+}
+
 /** WakeUp 模板兼容的 CSV */
 export function exportCsv(data) {
   const esc = (v) => {
@@ -15,7 +35,7 @@ export function exportCsv(data) {
     return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   const rows = [['课程名称', '星期', '开始节数', '结束节数', '老师', '地点', '周数', '颜色']];
-  data.courses.forEach((c) => rows.push([c.name, c.day, c.start, c.end, c.teacher, c.room, P.formatWeeks(c.weeks).replace(/周/g, ''), c.color]));
+  data.courses.forEach((c) => rows.push([c.name, c.day, c.start, c.end, c.teacher, c.room, csvWeeks(c.weeks), c.color]));
   return '\uFEFF' + rows.map((r) => r.map(esc).join(',')).join('\r\n');
 }
 
@@ -59,7 +79,8 @@ export function exportIcs(data, { alarmMinutes = 0 } = {}) {
     const p1 = data.periods[c.start - 1];
     const p2 = data.periods[c.end - 1] || p1;
     if (!p1) return;
-    const weeks = c.weeks.length ? c.weeks : Array.from({ length: data.totalWeeks }, (_, i) => i + 1);
+    // 只导出学期范围内的周（缩短学期后，课程里可能还留着更靠后的周次）
+    const weeks = (c.weeks.length ? c.weeks : Array.from({ length: data.totalWeeks }, (_, i) => i + 1)).filter((w) => w <= data.totalWeeks);
     weeks.forEach((w) => {
       const day = dateOf(data.startDate, w, c.day);
       lines.push(
@@ -89,6 +110,7 @@ export function exportIcs(data, { alarmMinutes = 0 } = {}) {
 export function snapshotOf(data) {
   return {
     v: 1,
+    id: data.id,
     name: data.name,
     startDate: data.startDate,
     totalWeeks: data.totalWeeks,

@@ -22,6 +22,7 @@ export function uid() {
 export function defaultData() {
   return {
     version: 1,
+    id: uid(),
     name: '我的课表',
     startDate: guessStartDate(),
     totalWeeks: 20,
@@ -39,6 +40,7 @@ const HM = /^\d{1,2}:\d{2}$/;
 export function sanitize(input) {
   const d = defaultData();
   const src = input && typeof input === 'object' ? input : {};
+  if (typeof src.id === 'string' && /^[\w-]{4,40}$/.test(src.id)) d.id = src.id;
   if (typeof src.name === 'string' && src.name.trim()) d.name = src.name.trim().slice(0, 40);
   if (/^\d{4}-\d{2}-\d{2}$/.test(src.startDate)) d.startDate = src.startDate;
   const tw = parseInt(src.totalWeeks, 10);
@@ -107,7 +109,13 @@ export function assignColors(courses) {
 export function load() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return sanitize(JSON.parse(raw));
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const data = sanitize(parsed);
+      // 旧数据没有 id：补上并保存，保证 id 稳定（用于区分"小组件同步"和"别人分享的课表"）
+      if (parsed.id !== data.id) save(data, { touch: false });
+      return data;
+    }
   } catch (e) {
     console.warn('读取课表失败', e);
   }
@@ -166,4 +174,27 @@ export function hasWeekendCourses(data) {
 export function visibleDays(data) {
   const show = data.showWeekend === 'always' || (data.showWeekend === 'auto' && hasWeekendCourses(data));
   return show ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5];
+}
+
+/** 按节次把互相重叠（含连锁重叠）的课合并成块，块的范围覆盖所有课 */
+function cluster(courses, other) {
+  const blocks = [];
+  let cur = null;
+  [...courses].sort((a, b) => a.start - b.start || b.end - a.end).forEach((c) => {
+    if (cur && c.start <= cur.end) {
+      cur.items.push(c);
+      cur.end = Math.max(cur.end, c.end);
+    } else {
+      cur = { start: c.start, end: c.end, items: [c], other };
+      blocks.push(cur);
+    }
+  });
+  return blocks;
+}
+
+/** 一天的课程块：本周的课优先；非本周的课只占用本周课没有占用的时间，重叠时显示 +n */
+export function layoutDay(active, others) {
+  const blocks = cluster(active, false);
+  const free = others.filter((c) => !blocks.some((b) => c.start <= b.end && c.end >= b.start));
+  return blocks.concat(cluster(free, true)).sort((a, b) => a.start - b.start);
 }

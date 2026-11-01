@@ -1,6 +1,6 @@
 import { app } from '../context.js';
 import { h, icon, openSheet } from '../ui.js';
-import { currentWeek, displayWeek, inWeek, maxPeriodUsed, visibleDays } from '../store.js';
+import { currentWeek, displayWeek, inWeek, layoutDay, maxPeriodUsed, visibleDays } from '../store.js';
 import { DAY_NAMES, dateOf, diffDays } from '../time.js';
 import { openCourseDetail, openEditor } from '../sheets/editor.js';
 
@@ -41,23 +41,6 @@ function openWeekPicker() {
     ),
     footer: h('button', { class: 'btn', onclick: () => { viewWeek = null; s.close(); app.render(); } }, '回到本周')
   });
-}
-
-/** 把一天的课排成不重叠的块；重叠的课合并到同一块（显示 +n） */
-function layoutDay(active, others) {
-  const blocks = [];
-  active.forEach((c) => {
-    const hit = blocks.find((b) => c.start <= b.end && c.end >= b.start);
-    if (hit) hit.items.push(c);
-    else blocks.push({ start: c.start, end: c.end, items: [c], other: false });
-  });
-  others.forEach((c) => {
-    if (blocks.some((b) => c.start <= b.end && c.end >= b.start)) return;
-    const hit = blocks.find((b) => b.other && c.start <= b.end && c.end >= b.start);
-    if (hit) hit.items.push(c);
-    else blocks.push({ start: c.start, end: c.end, items: [c], other: true });
-  });
-  return blocks;
 }
 
 export function renderWeek() {
