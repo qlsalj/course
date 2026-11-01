@@ -41,8 +41,49 @@ await step('书签脚本在"教务系统"页面识别强智课表', async () => 
     return items.length;
   });
   assert.equal(importPayload, 5);
+
+  // iOS 快捷指令「在网页上运行 JavaScript」：代码作为函数体执行，需要调用 completion()
+  await jw.reload();
+  await app.click('summary:has-text("方式 A")').catch(() => {});
+  const shortcut = await app.evaluate(async () => (await import('./js/sheets/import.js')).shortcutScript(location.origin + location.pathname));
+  const done = await jw.evaluate((code) => new Promise((resolve) => { new Function('completion', code)(resolve); }), shortcut);
+  assert.equal(done, true);
+  await jw.locator('#__course_importer__ .status').filter({ hasText: '识别到 5 门课程' }).waitFor({ timeout: 5000 });
+  assert.ok(/^[\x20-\x7e]+$/.test(href), '书签脚本应只包含 ASCII 字符');
   await jw.context().close();
   await app.context().close();
+});
+
+await step('网页课表解析（强智 / 正方网页 / 通用表格 / 课程名[班号] 一行多字段）', async () => {
+  const page = await newPage();
+  await page.goto(APP);
+  const parse = (html) => page.evaluate((h) => CourseParsers.parseHtml(h).courses.map((c) =>
+    [c.name, c.teacher, c.room, c.day, c.start, c.end, CourseParsers.formatWeeks(c.weeks)].join('|')), html);
+  assert.deepEqual(await parse(fixture('bracket-class.html')), [
+    '高等数学A|田静|实验大楼 实309|1|1|2|1-16周',
+    '大学物理实验|操凤萍|实验大楼 实516|2|3|4|4-17周',
+    '数据结构|李华|教学楼 A201|3|1|2|4-18周(双)',
+    '计算机组成课程设计|张志鹏|实验大楼 实309 机房|5|5|8|1-8,10-11周'
+  ]);
+  assert.deepEqual(await parse(fixture('qiangzhi.html')), [
+    '高等数学|李明|教一101|1|1|2|1-16周',
+    '大学物理|孙伟|理科楼201|2|3|4|2-16周(双)',
+    '概率论|吴刚|教三306|3|1|2|9-16周',
+    '线性代数|周红|教三305|3|1|2|1-8周',
+    '数据结构|郑强|计算机楼310|4|5|7|1-16周'
+  ]);
+  assert.deepEqual(await parse(fixture('zhengfang-web.html')), [
+    '高等数学A|李明|教一-101|1|1|2|1-16周',
+    '大学英语|Smith|外语楼302|2|3|4|1-15周(单)',
+    '英语听说|Lee|外语楼303|2|3|4|2-16周(双)'
+  ]);
+  assert.deepEqual(await parse(fixture('generic.html')), [
+    '操作系统|陈老师|信息楼B402|1|1|2|1-16周',
+    '编译原理|黄老师|信息楼C201|2|3|4|1-8周',
+    '计算机网络|林老师|信息楼A101|4|1|2|1-12周',
+    '形势与政策|何老师|大礼堂|5|3|3|5周'
+  ]);
+  await page.context().close();
 });
 
 await step('粘贴导入 正方 JSON → 确认 → 课表显示', async () => {

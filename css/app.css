@@ -512,3 +512,7 @@ textarea.input { resize: vertical; }
   text-align: center;
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* 导入方式折叠块 */
+.method { border-top: 0.5px solid var(--line); padding: 8px 0 2px; }
+.method > summary { font-weight: 600; cursor: pointer; padding: 4px 0; color: var(--accent); }

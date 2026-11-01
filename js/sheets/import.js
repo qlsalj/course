@@ -5,10 +5,21 @@ import { DAY_NAMES, startDateForCurrentWeek } from '../time.js';
 import { parseImport } from '../importers.js';
 import { weeksText } from './editor.js';
 
-/** 书签脚本：在教务系统页面加载 jw/parsers.js + jw/importer.js */
+// 加载 jw/parsers.js + jw/importer.js 的代码。只用 ASCII 字符和单引号，
+// 避免 Safari 保存书签时改写特殊字符
+function loader(base) {
+  const b = base.replace(/'/g, "\\'");
+  return `var b='${b}';window.__COURSE_APP_URL__=b;function l(u,c){var s=document.createElement('script');s.src=b+u+'?v='+Date.now();s.charset='utf-8';s.onload=c||null;s.onerror=function(){alert('\\u5bfc\\u5165\\u811a\\u672c\\u52a0\\u8f7d\\u5931\\u8d25\\uff0c\\u8bf7\\u68c0\\u67e5\\u7f51\\u7edc')};(document.body||document.documentElement).appendChild(s)}l('jw/parsers.js',function(){l('jw/importer.js')});`;
+}
+
+/** 书签脚本（电脑浏览器 / iOS Safari 书签） */
 export function bookmarklet(base) {
-  const code = `(function(){var b=${JSON.stringify(base)};window.__COURSE_APP_URL__=b;function l(u,c){var s=document.createElement('script');s.src=b+u+'?v='+Date.now();s.charset='utf-8';s.onload=c||null;s.onerror=function(){alert('导入脚本加载失败，请检查网络后重试')};(document.body||document.documentElement).appendChild(s)}l('jw/parsers.js',function(){l('jw/importer.js')})})();void 0`;
-  return `javascript:${code}`;
+  return `javascript:(function(){${loader(base)}})();void 0`;
+}
+
+/** iOS 快捷指令「在网页上运行 JavaScript」使用的代码（必须调用 completion） */
+export function shortcutScript(base) {
+  return `${loader(base)}\ncompletion(true);`;
 }
 
 export function openImportSheet() {
@@ -32,13 +43,27 @@ export function openImportSheet() {
       h('section', { class: 'card' },
         h('h3', null, '① 从教务系统导入'),
         h('p', { class: 'muted small' }, '支持正方（自动调用接口）、强智，以及大多数以表格显示课表的教务系统。原理是在已登录的教务页面运行一段书签脚本，识别课表后复制到剪贴板，数据不会上传到任何服务器。'),
-        h('ol', { class: 'steps' },
-          h('li', null, '复制书签脚本：', h('button', { class: 'btn small primary', onclick: async () => toast((await copyText(bm)) ? '已复制书签脚本' : '复制失败，请长按下方链接复制') }, '复制')),
-          h('li', null, h('b', null, 'iPhone / iPad：'), '在 Safari 中随便把一个网页添加为书签 → 打开书签列表，长按刚才的书签选「编辑」→ 名称改为「导入课表」，地址全部删掉并粘贴刚才复制的内容。'),
-          h('li', null, h('b', null, '电脑：'), '把这个按钮拖到浏览器书签栏 → ', h('a', { class: 'bookmarklet', href: bm, onclick: (e) => { e.preventDefault(); toast('请把它拖到书签栏，而不是点击'); } }, '导入课表')),
-          h('li', null, '登录教务系统，打开「个人课表 / 学期课表」页面（部分学校需先选好学期点查询），然后点击书签「导入课表」。iPhone 上可以在地址栏输入「导入课表」，点击下方的书签结果。'),
-          h('li', null, '在弹出的窗口里点「复制课表数据」，回到这里点下面的「从剪贴板粘贴」。')
-        )
+        h('p', { class: 'muted small' }, '下面两种方式任选其一。iPhone 上如果书签提示「无法运行脚本」，请用快捷指令。'),
+        h('details', { class: 'method', open: true },
+          h('summary', null, '方式 A：快捷指令（iPhone / iPad 推荐）'),
+          h('ol', { class: 'steps' },
+            h('li', null, '打开「快捷指令」App → 右上角 ＋ 新建 → 添加操作，搜索并添加「在网页上运行 JavaScript」。'),
+            h('li', null, '把操作里的默认代码全部删掉，粘贴这段代码：', h('button', { class: 'btn small primary', onclick: async () => toast((await copyText(shortcutScript(app.baseUrl))) ? '已复制快捷指令代码' : '复制失败') }, '复制代码')),
+            h('li', null, '点底部的 ⓘ（或顶部名称旁的下拉菜单）→ 打开「在共享表单中显示」，再把快捷指令命名为「导入课表」。'),
+            h('li', null, '如果运行时提示不允许运行脚本：打开系统「设置」→「快捷指令」→「高级」→ 打开「允许运行脚本」。'),
+            h('li', null, '在 Safari 中登录教务系统，打开「个人课表 / 学期课表」页面 → 点 Safari 的分享按钮 → 选「导入课表」。第一次运行会询问是否允许访问该网站，选允许。')
+          )
+        ),
+        h('details', { class: 'method' },
+          h('summary', null, '方式 B：书签脚本（电脑浏览器，或 iPhone 书签）'),
+          h('ol', { class: 'steps' },
+            h('li', null, '复制书签脚本：', h('button', { class: 'btn small primary', onclick: async () => toast((await copyText(bm)) ? '已复制书签脚本' : '复制失败，请长按下方链接复制') }, '复制')),
+            h('li', null, h('b', null, '电脑：'), '把这个按钮拖到浏览器书签栏 → ', h('a', { class: 'bookmarklet', href: bm, onclick: (e) => { e.preventDefault(); toast('请把它拖到书签栏，而不是点击'); } }, '导入课表')),
+            h('li', null, h('b', null, 'iPhone / iPad：'), '在 Safari 中随便把一个网页添加为书签 → 打开书签列表，长按刚才的书签选「编辑」→ 名称改为「导入课表」，地址全部删掉并粘贴刚才复制的内容。'),
+            h('li', null, '登录教务系统，打开课表页面后，从 Safari 的「书签」列表（📖 图标）里点「导入课表」。', h('b', null, '不要在地址栏输入或搜索书签名'), '，iOS 不允许从地址栏运行脚本，会提示「无法运行脚本」。')
+          )
+        ),
+        h('p', { class: 'small' }, '运行后页面上会弹出「课表导入助手」，点「复制课表数据」，再回到这里点下面的「从剪贴板粘贴」。')
       ),
       h('section', { class: 'card' },
         h('h3', null, '② 粘贴导入'),
