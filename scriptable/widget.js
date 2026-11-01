@@ -303,14 +303,33 @@ function buildMedium(w) {
   right.addSpacer();
 }
 
+// 大号组件的尺寸（pt）。Scriptable 拿不到组件的实际大小，按屏幕高度对照 Apple 公布的组件尺寸估算；
+// 估小了只会多一点留白，估大了内容会被裁掉，所以每档都取偏保守的值
+function largeWidgetSize() {
+  let h = 844;
+  try { h = Device.screenSize().height; } catch (e) { /* 预览环境 */ }
+  if (h >= 926) return { w: 364, h: 382 }; // Pro Max / Plus
+  if (h >= 896) return { w: 360, h: 376 };
+  if (h >= 874) return { w: 350, h: 364 }; // 16/17 Pro
+  if (h >= 844) return { w: 338, h: 354 }; // 标准尺寸
+  if (h >= 812) return { w: 329, h: 345 };
+  return { w: 321, h: 324 };                // SE 等小屏
+}
+
 function buildLarge(w) {
-  w.setPadding(16, 16, 16, 16);
+  const PAD = 16;
+  w.setPadding(PAD, PAD, PAD, PAD);
   header(w, true);
   w.addSpacer(12);
+  // 每行课程 32pt + 间距 8pt；按组件高度算出能放几行，把空间用满
+  const ROW = 32, GAP = 8, LABEL = 19, SECTION = 14;
+  let avail = largeWidgetSize().h - PAD * 2 - 18 - 12;
+  const fit = (space) => Math.max(0, Math.floor((space + GAP) / (ROW + GAP)));
+  const used = (n) => (n ? n * ROW + (n - 1) * GAP : 0);
+
   // 只显示还没上完的课，已经结束的课自动隐藏，避免一天课多时后面的课被挤出去
   const done = todayLessons.length - remaining.length;
   const main = showTomorrow ? focus : { label: "今天", lessons: remaining, offset: 0 };
-  let rows = 6;
   if (main.lessons.length) {
     const row = hRow(w);
     addText(row, main.label, 11, THEME.secondary, "semibold");
@@ -322,28 +341,33 @@ function buildLarge(w) {
     }
     row.addSpacer();
     w.addSpacer(6);
-    main.lessons.slice(0, rows).forEach((l, i) => {
-      if (i) w.addSpacer(8);
-      lessonRow(w, l, { height: 32, nameSize: 15, metaSize: 12, status: main.offset === 0 });
+    avail -= LABEL;
+    let n = Math.min(main.lessons.length, fit(avail));
+    // 放不下全部时留一行写"还有 N 节未显示"
+    if (n < main.lessons.length) n = Math.min(n, fit(avail - 18));
+    main.lessons.slice(0, n).forEach((l, i) => {
+      if (i) w.addSpacer(GAP);
+      lessonRow(w, l, { height: ROW, nameSize: 15, metaSize: 12, status: main.offset === 0 });
     });
-    if (main.lessons.length > rows) {
+    avail -= used(n);
+    if (main.lessons.length > n) {
       w.addSpacer(4);
-      addText(w, `还有 ${main.lessons.length - rows} 节未显示`, 11, THEME.secondary);
+      addText(w, `还有 ${main.lessons.length - n} 节未显示`, 11, THEME.secondary);
+      avail -= 18;
     }
-    rows -= Math.min(main.lessons.length, rows);
-  } else if (showTomorrow) {
-    addText(w, "明天没有课", 15, THEME.text, "semibold");
   } else {
-    addText(w, todayLessons.length ? `今天的 ${todayLessons.length} 节课都上完啦` : "今天没有课", 15, THEME.text, "semibold");
+    addText(w, showTomorrow ? "明天没有课" : todayLessons.length ? `今天的 ${todayLessons.length} 节课都上完啦` : "今天没有课", 15, THEME.text, "semibold");
+    avail -= 20;
   }
   const after = main.offset === 0 ? nextDay : findNextDay(main.offset + 1);
-  if (after && rows >= 2) {
-    w.addSpacer(14);
+  const m = after ? Math.min(after.lessons.length, fit(avail - SECTION - LABEL)) : 0;
+  if (m > 0) {
+    w.addSpacer(SECTION);
     sectionLabel(w, dayLabel(after.offset, after.date), after.lessons.length);
     w.addSpacer(6);
-    after.lessons.slice(0, rows - 1).forEach((l, i) => {
-      if (i) w.addSpacer(8);
-      lessonRow(w, l, { height: 32, nameSize: 15, metaSize: 12 });
+    after.lessons.slice(0, m).forEach((l, i) => {
+      if (i) w.addSpacer(GAP);
+      lessonRow(w, l, { height: ROW, nameSize: 15, metaSize: 12 });
     });
   }
   w.addSpacer();
@@ -376,8 +400,9 @@ function buildWeek(w) {
   const span = Math.max(maxP - minP + 1, 4);
   const gap = 3;
   // 按 iPhone 常见尺寸（大号组件约 338×354pt）估算，放不下时 iOS 会自动裁剪
-  const colW = Math.floor((316 - gap * (days.length - 1)) / days.length);
-  const gridH = 262;
+  const size = largeWidgetSize();
+  const colW = Math.floor((size.w - 22 - gap * (days.length - 1)) / days.length);
+  const gridH = size.h - 92;
   const unit = Math.floor(gridH / span);
 
   const grid = w.addStack();
