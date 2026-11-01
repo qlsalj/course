@@ -245,7 +245,7 @@ function buildSmall(w) {
   } else if (focus.offset === 0 && minutesUntil(remaining[0].startAt) < 60) {
     addText(foot, `${untilText(remaining[0].startAt)}上课`, 11, THEME.accent, "medium");
   } else if (focus.offset === 0) {
-    addText(foot, remaining.length > shown.length ? `今天还剩 ${remaining.length} 节` : "今天的最后一节课", 11, THEME.secondary);
+    addText(foot, remaining.length === 1 ? "今天的最后一节课" : `今天还剩 ${remaining.length} 节`, 11, THEME.secondary);
   } else {
     addText(foot, `${focus.label}共 ${focus.lessons.length} 节`, 11, THEME.secondary);
   }

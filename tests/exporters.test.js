@@ -115,3 +115,13 @@ test('已经上完的课不再显示在组件里（小 / 中 / 大）', async ()
   assert.match(text, /还剩 1 节/);
   assert.match(text, /已上完 2 节/);
 });
+
+test('小号组件底部：只剩一节时才显示"最后一节课"', async () => {
+  // 周三 12:00：还剩 14:00、19:00 两节
+  let r = await render('2026-11-04T12:00:00', 'small');
+  assert.match(r.text, /今天还剩 2 节/);
+  assert.ok(!/最后一节/.test(r.text));
+  // 周三 16:00：只剩 19:00 一节
+  r = await render('2026-11-04T16:00:00', 'small');
+  assert.match(r.text, /今天的最后一节课/);
+});
