@@ -193,12 +193,12 @@ export async function runWidgetScript(code, opts = {}) {
 }
 
 /** 把 ListWidget 结构转成纯文本（测试用） */
-export function widgetText(el) {
+export function widgetText(el, now = Date.now()) {
   if (!el) return '';
   if (el.type === 'text') return el.text;
-  if (el.type === 'date') return formatDateEl(el, Date.now());
+  if (el.type === 'date') return formatDateEl(el, +now);
   if (!el.children) return '';
-  return el.children.map(widgetText).filter(Boolean).join(el.layout === 'h' ? ' ' : '\n');
+  return el.children.map((c) => widgetText(c, now)).filter(Boolean).join(el.layout === 'h' ? ' ' : '\n');
 }
 
 /* ======================= DOM 渲染 ======================= */
@@ -221,8 +221,8 @@ function formatDateEl(el, nowMs) {
     case 'relative':
     case 'offset': {
       const m = Math.abs(diff);
-      const t = m < 60 ? `${m}分钟` : `${Math.floor(m / 60)}小时${m % 60 ? (m % 60) + '分钟' : ''}`;
-      return diff >= 0 ? `${t}后` : `${t}前`;
+      // 与 iOS 的相对样式一致：只显示时长（如「19分钟」「1小时 5分钟」），不带"后/前"
+      return m < 60 ? `${m}分钟` : `${Math.floor(m / 60)}小时${m % 60 ? ' ' + (m % 60) + '分钟' : ''}`;
     }
     case 'timer': {
       const s = Math.abs(Math.round((d - nowMs) / 1000));

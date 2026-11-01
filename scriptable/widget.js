@@ -109,12 +109,6 @@ function minutesUntil(d) {
   return Math.max(0, Math.round((d - now) / 60000));
 }
 
-function untilText(d) {
-  const m = minutesUntil(d);
-  if (m < 60) return `${m}分钟后`;
-  const h = Math.floor(m / 60);
-  return m % 60 ? `${h}小时${m % 60}分后` : `${h}小时后`;
-}
 
 // ================= 当前状态 =================
 let PARAM = String(args.widgetParameter || "").trim().toLowerCase();
@@ -187,6 +181,28 @@ function smallWidgetSide() {
   return 148;
 }
 
+/**
+ * 倒计时：前缀文字 + 系统实时更新的相对时间（如「还有 19分钟」）。
+ * 小组件的文字只在脚本运行时生成，而 iOS 一天只会重新运行有限次数，
+ * 写死的「19 分钟后」会一直停在那里；WidgetDate 的相对样式由系统每分钟自动刷新。
+ * 日期放在最后，因为 iOS 会让它撑满剩余宽度。
+ */
+function addCountdown(parent, prefix, date, size, color, weight, opts) {
+  const row = parent.addStack();
+  row.layoutHorizontally();
+  row.centerAlignContent();
+  const o = opts || {};
+  if (prefix) addText(row, prefix, size, color, weight, { scale: 1, opacity: o.opacity });
+  const d = row.addDate(date);
+  d.applyRelativeStyle();
+  d.font = weight === "semibold" ? Font.semiboldSystemFont(size) : weight === "medium" ? Font.mediumSystemFont(size) : Font.systemFont(size);
+  d.textColor = color;
+  d.lineLimit = 1;
+  if (o.opacity != null) d.textOpacity = o.opacity;
+  if (o.right) d.rightAlignText(); else d.leftAlignText();
+  return row;
+}
+
 function hRow(parent) {
   const s = parent.addStack();
   s.layoutHorizontally();
@@ -218,7 +234,8 @@ function lessonRow(parent, l, o) {
     if (live) {
       addText(row, "上课中", o.metaSize, THEME.live, "semibold");
     } else if (l.startAt - now < 3 * 3600e3) {
-      addText(row, untilText(l.startAt), o.metaSize, THEME.accent, "medium");
+      const cd = addCountdown(row, "还有 ", l.startAt, o.metaSize, THEME.accent, "medium", { right: true });
+      cd.size = new Size(78, 0);
     }
   }
   return row;
@@ -284,7 +301,7 @@ function buildSmall(w) {
   if (focus.offset === 0 && current) {
     addText(foot, `上课中 · ${current.endText} 下课`, 11, THEME.live, "medium", { scale: 1 });
   } else if (focus.offset === 0 && minutesUntil(remaining[0].startAt) < 60) {
-    addText(foot, `${untilText(remaining[0].startAt)}上课`, 11, THEME.accent, "medium", { scale: 1 });
+    addCountdown(foot, "距上课还有 ", remaining[0].startAt, 11, THEME.accent, "medium");
   } else if (focus.offset === 0) {
     addText(foot, remaining.length === 1 ? "今天的最后一节课" : `今天还剩 ${remaining.length} 节`, 11, THEME.secondary, "regular", { scale: 1 });
   } else {
@@ -527,12 +544,15 @@ function buildRectangular(w) {
     return;
   }
   addText(s, l.name, 15, Color.white(), "bold", opt);
-  let time;
-  if (focus.offset !== 0) time = `${focus.label} ${l.startText}-${l.endText}`;
-  else if (l.startAt <= now) time = `上课中 · ${l.endText} 下课`;
-  else if (minutesUntil(l.startAt) < 60) time = `${l.startText} · ${untilText(l.startAt)}`;
-  else time = `${l.startText}-${l.endText}`;
-  addText(s, time, 12, Color.white(), "medium", dim);
+  if (focus.offset === 0 && l.startAt > now && minutesUntil(l.startAt) < 60) {
+    addCountdown(s, `${l.startText} · 还有 `, l.startAt, 12, Color.white(), "medium", { opacity: 0.75 });
+  } else {
+    let time;
+    if (focus.offset !== 0) time = `${focus.label} ${l.startText}-${l.endText}`;
+    else if (l.startAt <= now) time = `上课中 · ${l.endText} 下课`;
+    else time = `${l.startText}-${l.endText}`;
+    addText(s, time, 12, Color.white(), "medium", dim);
+  }
   if (l.room) addText(s, l.room, 12, Color.white(), "regular", dim);
 }
 
