@@ -221,7 +221,7 @@ function sectionLabel(parent, label, count) {
 function buildSmall(w) {
   w.setPadding(14, 14, 12, 14);
   header(w);
-  w.addSpacer(focus.offset === 0 ? 10 : 6);
+  w.addSpacer(8);
   if (!focus.lessons.length) {
     w.addSpacer();
     emptyMessage(w, 14);
@@ -232,20 +232,22 @@ function buildSmall(w) {
     sectionLabel(w, focus.label);
     w.addSpacer(4);
   }
-  focus.lessons.slice(0, 2).forEach((l, i) => {
-    if (i) w.addSpacer(8);
-    lessonRow(w, l, { height: 30, nameSize: 14, metaSize: 11, compact: true });
+  // 课程之间用弹性间距均匀铺开，避免空白都堆在底部
+  const shown = focus.lessons.slice(0, 2);
+  shown.forEach((l, i) => {
+    if (i) w.addSpacer();
+    lessonRow(w, l, { height: 34, nameSize: 15, metaSize: 12, compact: true });
   });
   w.addSpacer();
   const foot = hRow(w);
   if (focus.offset === 0 && current) {
-    addText(foot, `上课中 · ${current.endText} 下课`, 10, THEME.live, "medium");
+    addText(foot, `上课中 · ${current.endText} 下课`, 11, THEME.live, "medium");
   } else if (focus.offset === 0 && minutesUntil(remaining[0].startAt) < 60) {
-    addText(foot, `${untilText(remaining[0].startAt)}上课`, 10, THEME.accent, "medium");
+    addText(foot, `${untilText(remaining[0].startAt)}上课`, 11, THEME.accent, "medium");
   } else if (focus.offset === 0) {
-    addText(foot, `今天还剩 ${remaining.length} 节`, 10, THEME.secondary);
+    addText(foot, remaining.length > shown.length ? `今天还剩 ${remaining.length} 节` : "今天的最后一节课", 11, THEME.secondary);
   } else {
-    addText(foot, `${focus.label}共 ${focus.lessons.length} 节`, 10, THEME.secondary);
+    addText(foot, `${focus.label}共 ${focus.lessons.length} 节`, 11, THEME.secondary);
   }
   foot.addSpacer();
 }
@@ -437,24 +439,35 @@ function buildWeek(w) {
   });
 }
 
+// 锁屏矩形组件：仿照系统「日历 · 接下来」的样式 —— 左侧竖条 + 课程名 + 时间 + 地点
 function buildRectangular(w) {
   const l = focus.lessons[0];
-  const s = w.addStack();
+  const row = w.addStack();
+  row.layoutHorizontally();
+  row.centerAlignContent();
+  const bar = row.addStack();
+  bar.size = new Size(3, 48);
+  bar.cornerRadius = 1.5;
+  bar.backgroundColor = Color.white();
+  row.addSpacer(6);
+  const s = row.addStack();
   s.layoutVertically();
+  row.addSpacer();
   const opt = { scale: 0.6 };
+  const dim = Object.assign({ opacity: 0.75 }, opt);
   if (!l) {
-    addText(s, weekLabel(), 12, Color.white(), "semibold", opt);
-    addText(s, todayLessons.length ? "今天的课上完啦" : "今天没有课", 14, Color.white(), "bold", opt);
+    addText(s, todayLessons.length ? "今天的课上完啦" : "今天没有课", 15, Color.white(), "bold", opt);
+    addText(s, weekLabel(), 12, Color.white(), "medium", dim);
     return;
   }
-  let top;
-  if (focus.offset !== 0) top = `${focus.label} ${l.startText} 上课`;
-  else if (l.startAt <= now) top = `上课中 · ${l.endText} 下课`;
-  else if (minutesUntil(l.startAt) < 60) top = `${l.startText} · ${untilText(l.startAt)}`;
-  else top = `${l.startText} 上课`;
-  addText(s, top, 12, Color.white(), "semibold", Object.assign({ opacity: 0.75 }, opt));
-  addText(s, l.name, 14, Color.white(), "bold", opt);
-  addText(s, l.room || weekLabel(), 12, Color.white(), "regular", Object.assign({ opacity: 0.75 }, opt));
+  addText(s, l.name, 15, Color.white(), "bold", opt);
+  let time;
+  if (focus.offset !== 0) time = `${focus.label} ${l.startText}-${l.endText}`;
+  else if (l.startAt <= now) time = `上课中 · ${l.endText} 下课`;
+  else if (minutesUntil(l.startAt) < 60) time = `${l.startText} · ${untilText(l.startAt)}`;
+  else time = `${l.startText}-${l.endText}`;
+  addText(s, time, 12, Color.white(), "medium", dim);
+  if (l.room) addText(s, l.room, 12, Color.white(), "regular", dim);
 }
 
 function buildInline(w) {
