@@ -165,3 +165,9 @@ test('大号组件默认显示整周；Parameter 可以覆盖', async () => {
   r = await run(script, '');
   assert.ok(!/11\/2 - 11\/8/.test(r.text));
 });
+
+test('小号组件只用一个弹性 spacer（多个会让 iOS 缩小第二节课的课名）', async () => {
+  const { widget } = await runWidgetScript(script, { family: 'small', now: new Date('2026-11-04T08:20:00'), screen: [440, 956] });
+  const flexible = widget.children.filter((c) => c.type === 'spacer' && c.length == null).length;
+  assert.equal(flexible, 1);
+});

@@ -234,12 +234,18 @@ function buildSmall(w) {
     sectionLabel(w, focus.label);
     w.addSpacer(4);
   }
-  // 课程之间用弹性间距均匀铺开，避免空白都堆在底部
+  // 课程之间均匀留白，避免空白都堆在底部。
+  // 注意不要用多个弹性 spacer：iOS 会和可缩放的文字抢高度，把第二节课的课名莫名缩小。
+  // 所以按组件高度算出固定间距，只在最后保留一个弹性 spacer。
   const shown = focus.lessons.slice(0, 2);
+  const ROW = 38; // 中文字体行高比字号大，按实际渲染高度估算
+  const used = 14 + 12 + 18 + 8 + (focus.offset !== 0 ? 17 : 0) + shown.length * ROW + 15;
+  const gap = Math.max(6, Math.min(18, Math.floor((smallWidgetSize() - used) / shown.length)));
   shown.forEach((l, i) => {
-    if (i) w.addSpacer();
+    if (i) w.addSpacer(gap);
     lessonRow(w, l, { height: 34, nameSize: 15, metaSize: 12, compact: true });
   });
+  w.addSpacer(gap);
   w.addSpacer();
   const foot = hRow(w);
   if (focus.offset === 0 && current) {
@@ -316,6 +322,18 @@ function largeWidgetSize() {
   if (h >= 844) return { w: 338, h: 354 }; // 标准尺寸
   if (h >= 812) return { w: 329, h: 345 };
   return { w: 321, h: 324 };                // SE 等小屏
+}
+
+// 小号组件的高度（pt），同样按屏幕高度对照 Apple 公布的尺寸保守估算
+function smallWidgetSize() {
+  let h = 844;
+  try { h = Device.screenSize().height; } catch (e) { /* 预览环境 */ }
+  if (h >= 926) return 170;
+  if (h >= 896) return 169;
+  if (h >= 874) return 162;
+  if (h >= 844) return 158;
+  if (h >= 812) return 155;
+  return 148;
 }
 
 function buildLarge(w) {
