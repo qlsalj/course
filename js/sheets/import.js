@@ -12,6 +12,10 @@ function loader(base, done = '') {
   return `var b='${b}';window.__COURSE_APP_URL__=b;var D=function(){${done}};function l(u,c){var s=document.createElement('script');s.src=b+u+'?v='+Date.now();s.charset='utf-8';s.onload=c;s.onerror=function(){alert('\\u5bfc\\u5165\\u811a\\u672c\\u52a0\\u8f7d\\u5931\\u8d25\\uff0c\\u8bf7\\u68c0\\u67e5\\u7f51\\u7edc');D()};(document.body||document.documentElement).appendChild(s)}l('jw/parsers.js',function(){l('jw/importer.js',D)});`;
 }
 
+// 项目官方站点及维护者分享的「导入课表」快捷指令（只在官方站点显示，自己部署的需要手动创建）
+const OFFICIAL_SITE = 'https://qlsalj.github.io/course/';
+const OFFICIAL_SHORTCUT = 'https://www.icloud.com/shortcuts/48bc18b94a7e4d46a095c80b31ea3036';
+
 /** 书签脚本（电脑浏览器 / iOS Safari 书签） */
 export function bookmarklet(base) {
   return `javascript:(function(){${loader(base)}})();void 0`;
@@ -59,19 +63,30 @@ export function openImportSheet() {
     content: h('div', { class: 'import' },
       h('section', { class: 'card' },
         h('h3', null, '① 从教务系统导入'),
-        h('p', { class: 'muted small' }, '支持正方（自动调用接口）、强智，以及大多数以表格显示课表的教务系统。原理是在已登录的教务页面运行一段书签脚本，识别课表后复制到剪贴板，数据不会上传到任何服务器。'),
+        h('p', { class: 'muted small' }, '支持正方（自动调用接口）、强智，以及大多数以表格显示课表的教务系统。原理是在已登录的教务页面运行一小段脚本（通过快捷指令或书签），识别课表后复制到剪贴板，数据不会上传到任何服务器。'),
         h('p', { class: 'muted small' }, '下面两种方式任选其一。iPhone 上如果书签提示「无法运行脚本」，请用快捷指令。'),
         h('details', { class: 'method', open: true },
           h('summary', null, '方式 A：快捷指令（iPhone / iPad 推荐）'),
           h('ol', { class: 'steps' },
-            h('li', null, '打开「快捷指令」App → 右上角 ＋ 新建 → 添加操作，搜索并添加「在网页上运行 JavaScript」。'),
-            h('li', null, '把操作里的默认代码全部删掉，粘贴这段代码：', h('button', { class: 'btn small primary', onclick: async () => toast((await copyText(shortcutScript(app.baseUrl))) ? '已复制快捷指令代码' : '复制失败') }, '复制代码')),
-            h('li', null, '点底部的 ⓘ → 打开「在共享表单中显示」。这时顶部会多出「从共享表单接收…」，点里面蓝色的类型，', h('b', null, '只保留「Safari 网页」'), '。'),
-            h('li', null, '确认操作写的是「在 ', h('b', null, '快捷指令输入'), ' 上运行 JavaScript」。如果显示成灰色的「网页」，点它选「快捷指令输入」。'),
-            h('li', null, '再添加一个「显示结果」操作放在最后（导入失败时会显示原因，成功时什么也不显示）。'),
-            h('li', null, '把快捷指令命名为「导入课表」。如果运行时提示不允许运行脚本：系统「设置」→「快捷指令」→「高级」→ 打开「允许运行脚本」。'),
-            h('li', null, h('b', null, '不要在快捷指令里点 ▶ 运行'), '（那里没有网页）。在 Safari 中登录教务系统，打开「个人课表 / 学期课表」页面 → 点 Safari 的分享按钮 → 选「导入课表」。第一次运行会询问是否允许访问该网站，选允许。如果课表是在「校园门户」里打开的，导入助手会提示你单独打开里面嵌套的教务页面再运行。')
-          )
+            OFFICIAL_SHORTCUT && app.baseUrl === OFFICIAL_SITE
+              ? h('li', null, '添加快捷指令：', h('a', { class: 'btn small primary', href: OFFICIAL_SHORTCUT, target: '_blank', rel: 'noopener' }, '获取「导入课表」快捷指令'), ' → 在打开的页面点「添加快捷指令」。')
+              : h('li', null, '先按下面「手动创建快捷指令」的步骤建一个名为「导入课表」的快捷指令。'),
+            h('li', null, '在 Safari 中登录教务系统（或校园门户），打开「个人课表 / 学期课表」页面 → 点 Safari 的分享按钮 → 选「导入课表」。第一次运行会询问是否允许访问该网站，选允许。'),
+            h('li', null, h('b', null, '运行后不会直接复制'), '：网页上会弹出「课表导入助手」窗口，列出识别到的课程，点里面的「复制课表数据」。'),
+            h('li', null, '回到这里，点下面的「从剪贴板粘贴」，确认导入。')
+          ),
+          h('details', { class: 'sub-method' },
+            h('summary', null, '手动创建快捷指令'),
+            h('ol', { class: 'steps' },
+              h('li', null, '打开「快捷指令」App → 右上角 ＋ 新建 → 添加操作，搜索并添加「在网页上运行 JavaScript」。'),
+              h('li', null, '把操作里的默认代码全部删掉，粘贴这段代码：', h('button', { class: 'btn small primary', onclick: async () => toast((await copyText(shortcutScript(app.baseUrl))) ? '已复制快捷指令代码' : '复制失败') }, '复制代码')),
+              h('li', null, '点底部的 ⓘ → 打开「在共享表单中显示」。点顶部「从共享表单接收…」里蓝色的类型，', h('b', null, '只保留「Safari 网页」'), '。'),
+              h('li', null, '确认操作写的是「在 ', h('b', null, '快捷指令输入'), ' 上运行 JavaScript」。如果显示成灰色的「网页」，点它选「快捷指令输入」。'),
+              h('li', null, '可选：最后再加一个「显示结果」操作，导入失败时会显示原因。'),
+              h('li', null, '命名为「导入课表」。如果运行时提示不允许运行脚本：系统「设置」→「快捷指令」→「高级」→ 打开「允许运行脚本」。不要在快捷指令编辑器里点 ▶ 运行，那里没有网页。')
+            )
+          ),
+          h('p', { class: 'muted small' }, '课表在校园门户里打开、导入助手提示找不到课表时，它会列出门户里嵌套的教务页面，点「打开」单独打开后再运行一次。')
         ),
         h('details', { class: 'method' },
           h('summary', null, '方式 B：书签脚本（电脑浏览器，或 iPhone 书签）'),
@@ -82,7 +97,7 @@ export function openImportSheet() {
             h('li', null, '登录教务系统，打开课表页面后，从 Safari 的「书签」列表（📖 图标）里点「导入课表」。', h('b', null, '不要在地址栏输入或搜索书签名'), '，iOS 不允许从地址栏运行脚本，会提示「无法运行脚本」。')
           )
         ),
-        h('p', { class: 'small' }, '运行后页面上会弹出「课表导入助手」，点「复制课表数据」，再回到这里点下面的「从剪贴板粘贴」。')
+        h('p', { class: 'small' }, '两种方式运行后，网页上都会弹出「课表导入助手」窗口：点「复制课表数据」，再回到这里点下面的「从剪贴板粘贴」。')
       ),
       h('section', { class: 'card' },
         h('h3', null, '② 粘贴导入'),
