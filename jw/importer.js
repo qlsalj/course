@@ -68,6 +68,7 @@
     if (act === 'copy') copy(payload, t, '已复制！回到课表 App 粘贴导入');
     if (act === 'open') openApp();
     if (act === 'html') copy(dumpHtml(), t, '已复制页面源码');
+    if (act === 'frame') window.open(t.getAttribute('data-url'), '_blank');
   });
 
   function close() { host.remove(); }
@@ -125,7 +126,14 @@
     var courses = result.courses || [];
     if (!courses.length) {
       statusEl.innerHTML = '没有在当前页面找到课表。';
-      listEl.innerHTML =
+      var frames = P.crossOriginFrames(window);
+      var frameTip = frames.length
+        ? '<div class="tip"><b>这个页面里嵌套了其他网站的页面，脚本读不到里面的内容。</b>课表很可能就在其中，请点下面的按钮单独打开它，再在新页面里运行一次导入：</div>' +
+          frames.slice(0, 6).map(function (u) {
+            return '<button class="b secondary" style="width:100%;margin:4px 0;text-align:left;font-weight:500;font-size:13px;word-break:break-all" data-act="frame" data-url="' + esc(u) + '">打开 ' + esc(u.length > 80 ? u.slice(0, 80) + '…' : u) + '</button>';
+          }).join('')
+        : '';
+      listEl.innerHTML = frameTip +
         '<div class="tip">请确认：<br>1. 已登录教务系统；<br>2. 当前打开的是「个人课表 / 学期课表」页面（能看到课表格子）；<br>' +
         '3. 部分系统需要先选好学年学期并点「查询」。<br><br>' +
         '如果仍然识别失败，欢迎点击下面的按钮复制页面源码，到项目 GitHub 提 issue 适配你的学校（注意先删掉学号姓名等隐私信息）。</div>';

@@ -46,9 +46,28 @@ await step('书签脚本在"教务系统"页面识别强智课表', async () => 
   await jw.reload();
   await app.click('summary:has-text("方式 A")').catch(() => {});
   const shortcut = await app.evaluate(async () => (await import('./js/sheets/import.js')).shortcutScript(location.origin + location.pathname));
-  const done = await jw.evaluate((code) => new Promise((resolve) => { new Function('completion', code)(resolve); }), shortcut);
-  assert.equal(done, true);
+  const runShortcut = (pg) => pg.evaluate((code) => new Promise((resolve) => { new Function('completion', code)(resolve); }), shortcut);
+  assert.equal(await runShortcut(jw), '', '成功时 completion 返回空字符串');
   await jw.locator('#__course_importer__ .status').filter({ hasText: '识别到 5 门课程' }).waitFor({ timeout: 5000 });
+  assert.ok(/^[\x20-\x7e\n]+$/.test(shortcut), '快捷指令代码应只包含 ASCII 字符');
+
+  // 网站有 CSP、拦截外部 <script>：快捷指令改为 fetch 源码后执行
+  const csp = await newPage();
+  await csp.goto(`${JW}tests/fixtures/csp.html`);
+  assert.equal(await runShortcut(csp), '');
+  await csp.locator('#__course_importer__ .status').filter({ hasText: '识别到 1 门课程' }).waitFor({ timeout: 5000 });
+  await csp.context().close();
+
+  // 校园门户：课表在跨域 iframe 里 → 提示单独打开
+  const portal = await newPage();
+  await portal.goto(`${JW}tests/fixtures/portal.html`);
+  const inner = `${APP}tests/fixtures/qiangzhi.html`;
+  await portal.evaluate((src) => new Promise((r) => { const f = document.createElement('iframe'); f.src = src; f.onload = r; document.getElementById('slot').appendChild(f); }), inner);
+  assert.equal(await runShortcut(portal), '');
+  const btn = portal.locator('#__course_importer__ button[data-act="frame"]');
+  await btn.waitFor({ timeout: 5000 });
+  assert.equal(await btn.getAttribute('data-url'), inner);
+  await portal.context().close();
   assert.ok(/^[\x20-\x7e]+$/.test(href), '书签脚本应只包含 ASCII 字符');
   await jw.context().close();
   await app.context().close();
