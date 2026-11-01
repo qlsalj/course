@@ -93,6 +93,27 @@ export function openSheet({ title, content, footer, onClose, className = '' }) {
     },
     setContent(node) { clear(body); append(body, [node]); }
   };
+  // 按住顶部（把手 / 标题栏）向下拖动关闭
+  let startY = 0; let dy = 0; let dragging = false; let t0 = 0;
+  const dragStart = (e) => { dragging = true; startY = e.touches[0].clientY; dy = 0; t0 = Date.now(); sheet.style.transition = 'none'; };
+  const dragMove = (e) => {
+    if (!dragging) return;
+    dy = Math.max(0, e.touches[0].clientY - startY);
+    sheet.style.transform = `translateY(${dy}px)`;
+  };
+  const dragEnd = () => {
+    if (!dragging) return;
+    dragging = false;
+    sheet.style.transition = '';
+    const fast = dy / Math.max(1, Date.now() - t0) > 0.5;
+    if (dy > 110 || (fast && dy > 30)) { sheet.style.transform = ''; api.close(); } else sheet.style.transform = '';
+  };
+  sheet.querySelectorAll('.sheet-grip, .sheet-head').forEach((el) => {
+    el.addEventListener('touchstart', dragStart, { passive: true });
+    el.addEventListener('touchmove', dragMove, { passive: true });
+    el.addEventListener('touchend', dragEnd, { passive: true });
+    el.addEventListener('touchcancel', dragEnd, { passive: true });
+  });
   if (typeof content === 'function') content = content(api);
   append(body, [content]);
   root.appendChild(backdrop);

@@ -217,6 +217,38 @@ await step('别人分享的课表不会覆盖本机课表；同一份课表的�
   await page.context().close();
 });
 
+await step('课表左右拖动切换周（跟手、未过阈值弹回）', async () => {
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.clock.install({ time: new Date('2026-11-04T10:20:00') });
+  await page.goto(APP);
+  await page.evaluate((d) => localStorage.setItem('course-pwa:data:v1', d), fixture('demo.json'));
+  await page.goto(`${APP}index.html?swipe=1#/week`);
+  await page.waitForSelector('.grid .course');
+  const cdp = await ctx.newCDPSession(page);
+  const drag = async (fromX, toX, steps, stepMs) => {
+    const y = 500;
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: fromX, y }] });
+    for (let i = 1; i <= steps; i++) {
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: fromX + ((toX - fromX) * i) / steps, y }] });
+      await page.waitForTimeout(stepMs);
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await page.waitForTimeout(500);
+  };
+  const title = () => page.textContent('.week-title .week-num');
+  assert.equal(await title(), '第 9 周');
+  await drag(330, 300, 6, 40); // 拖一点点、很慢：弹回
+  assert.equal(await title(), '第 9 周');
+  assert.equal(await page.$eval('.grid', (g) => g.style.transform), '');
+  await drag(330, 80, 8, 16); // 向左拖过 1/4：下一周
+  assert.equal(await title(), '第 10 周');
+  await drag(60, 330, 8, 16); // 向右：回到上一周
+  assert.equal(await title(), '第 9 周');
+  await ctx.close();
+});
+
 await step('手动添加课程', async () => {
   const page = await newPage();
   await page.goto(`${APP}#/week`);

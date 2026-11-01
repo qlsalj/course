@@ -2,7 +2,7 @@ import { app } from '../context.js';
 import { h, openSheet, toast, copyText, download } from '../ui.js';
 import { savePrefs } from '../store.js';
 import { buildWidgetScript } from '../exporters.js';
-import { renderWidget, runWidgetScript } from '../widget-preview.js';
+import { fitWidgetText, renderWidget, runWidgetScript } from '../widget-preview.js';
 
 let templateCache = null;
 
@@ -68,6 +68,7 @@ export function openWidgetSheet() {
         nodes = [tab === 'week' ? await renderOne('large', 'week') : await renderOne(tab)];
       }
       stage.replaceChildren(...nodes);
+      fitWidgetText(stage);
     } catch (e) {
       console.error(e);
       stage.replaceChildren(h('p', { class: 'muted' }, `预览失败：${e.message}`));

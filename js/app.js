@@ -52,11 +52,14 @@ app.render = ({ slide } = {}) => {
   if (!['today', 'week', 'settings'].includes(name)) name = 'today';
   if (name === 'week' && route.arg && lastRoute !== location.hash) setViewWeek(parseInt(route.arg, 10) || null);
   lastRoute = location.hash;
-  const scroll = name === document.body.dataset.view ? window.scrollY : 0;
+  const sameView = name === document.body.dataset.view;
+  const scroll = sameView ? window.scrollY : 0;
   document.body.dataset.view = name;
   tabbar.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
   const node = name === 'week' ? renderWeek() : name === 'settings' ? renderSettings() : renderToday();
   if (slide) node.classList.add(`slide-${slide}`);
+  // 只有切换页面时才播放进场动画（每 30 秒的自动刷新不闪）
+  if (!sameView) node.classList.add('enter');
   clear(view).appendChild(node);
   window.scrollTo(0, scroll);
 };

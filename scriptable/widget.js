@@ -173,8 +173,11 @@ function lessonRow(parent, l, o) {
   col.layoutVertically();
   addText(col, l.name, o.nameSize, THEME.text, "semibold", { opacity: past ? 0.45 : 1 });
   col.addSpacer(1);
-  const meta = `${l.startText}-${l.endText}` + (l.room ? ` · ${l.room}` : "");
-  addText(col, meta, o.metaSize, THEME.secondary, "regular", { opacity: past ? 0.6 : 1 });
+  // 小号组件空间有限：只显示上课时间 + 教室
+  const meta = o.compact
+    ? `${l.startText}` + (l.room ? ` ${l.room}` : "")
+    : `${l.startText}-${l.endText}` + (l.room ? ` · ${l.room}` : "");
+  addText(col, meta, o.metaSize, THEME.secondary, "regular", { opacity: past ? 0.6 : 1, scale: 0.7 });
   row.addSpacer();
   if (o.status && !past) {
     if (live) {
@@ -231,14 +234,16 @@ function buildSmall(w) {
   }
   focus.lessons.slice(0, 2).forEach((l, i) => {
     if (i) w.addSpacer(8);
-    lessonRow(w, l, { height: 30, nameSize: 14, metaSize: 11 });
+    lessonRow(w, l, { height: 30, nameSize: 14, metaSize: 11, compact: true });
   });
   w.addSpacer();
   const foot = hRow(w);
   if (focus.offset === 0 && current) {
     addText(foot, `上课中 · ${current.endText} 下课`, 10, THEME.live, "medium");
+  } else if (focus.offset === 0 && minutesUntil(remaining[0].startAt) < 60) {
+    addText(foot, `${untilText(remaining[0].startAt)}上课`, 10, THEME.accent, "medium");
   } else if (focus.offset === 0) {
-    addText(foot, `${untilText(remaining[0].startAt)}上课 · 还剩 ${remaining.length} 节`, 10, THEME.secondary);
+    addText(foot, `今天还剩 ${remaining.length} 节`, 10, THEME.secondary);
   } else {
     addText(foot, `${focus.label}共 ${focus.lessons.length} 节`, 10, THEME.secondary);
   }
@@ -300,18 +305,34 @@ function buildLarge(w) {
   w.setPadding(16, 16, 16, 16);
   header(w, true);
   w.addSpacer(12);
-  const main = showTomorrow ? focus : { label: "今天", lessons: todayLessons, offset: 0 };
+  // 只显示还没上完的课，已经结束的课自动隐藏，避免一天课多时后面的课被挤出去
+  const done = todayLessons.length - remaining.length;
+  const main = showTomorrow ? focus : { label: "今天", lessons: remaining, offset: 0 };
   let rows = 6;
   if (main.lessons.length) {
-    sectionLabel(w, main.label, main.lessons.length);
+    const row = hRow(w);
+    addText(row, main.label, 11, THEME.secondary, "semibold");
+    row.addSpacer(4);
+    addText(row, main.offset === 0 ? `还剩 ${main.lessons.length} 节` : `${main.lessons.length} 节`, 11, THEME.secondary);
+    if (main.offset === 0 && done) {
+      row.addSpacer(4);
+      addText(row, `· 已上完 ${done} 节`, 11, THEME.secondary, "regular", { opacity: 0.7 });
+    }
+    row.addSpacer();
     w.addSpacer(6);
     main.lessons.slice(0, rows).forEach((l, i) => {
       if (i) w.addSpacer(8);
       lessonRow(w, l, { height: 32, nameSize: 15, metaSize: 12, status: main.offset === 0 });
     });
+    if (main.lessons.length > rows) {
+      w.addSpacer(4);
+      addText(w, `还有 ${main.lessons.length - rows} 节未显示`, 11, THEME.secondary);
+    }
     rows -= Math.min(main.lessons.length, rows);
+  } else if (showTomorrow) {
+    addText(w, "明天没有课", 15, THEME.text, "semibold");
   } else {
-    addText(w, showTomorrow ? "明天没有课" : "今天没有课", 15, THEME.text, "semibold");
+    addText(w, todayLessons.length ? `今天的 ${todayLessons.length} 节课都上完啦` : "今天没有课", 15, THEME.text, "semibold");
   }
   const after = main.offset === 0 ? nextDay : findNextDay(main.offset + 1);
   if (after && rows >= 2) {
@@ -328,53 +349,88 @@ function buildLarge(w) {
 
 // 大号组件：整周课表
 function buildWeek(w) {
-  w.setPadding(12, 10, 12, 10);
-  const head = hRow(w);
-  addText(head, DATA.name || "课表", 14, THEME.text, "bold");
-  head.addSpacer();
-  addText(head, weekLabel(), 12, THEME.accent, "semibold");
-  w.addSpacer(8);
-
+  w.setPadding(12, 10, 10, 10);
   const week = Math.min(Math.max(weekOf(today), 1), DATA.totalWeeks);
   const monday = addDays(firstMonday, (week - 1) * 7);
+  const sunday = addDays(monday, 6);
   const showWeekend = DATA.courses.some((c) => c.day >= 6);
   const days = showWeekend ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5];
-  const maxP = Math.max(8, ...DATA.courses.map((c) => c.end));
+  const lessonsByDay = days.map((d) => lessonsOn(addDays(monday, d - 1)));
+  const all = [].concat(...lessonsByDay);
+
+  // 标题：第 N 周 + 日期范围
+  const head = hRow(w);
+  head.setPadding(0, 4, 0, 4);
+  addText(head, `第${week}周`, 16, THEME.text, "rounded");
+  head.addSpacer(6);
+  addText(head, `${monday.getMonth() + 1}/${monday.getDate()} - ${sunday.getMonth() + 1}/${sunday.getDate()}`, 11, THEME.secondary, "medium");
+  head.addSpacer();
+  addText(head, DATA.name || "", 11, THEME.secondary, "medium");
+  w.addSpacer(8);
+
+  // 只显示本周用到的节次范围，让格子尽量大
+  const minP = all.length ? Math.min(...all.map((l) => l.start)) : 1;
+  const maxP = all.length ? Math.max(...all.map((l) => l.end)) : 8;
+  const span = Math.max(maxP - minP + 1, 4);
   const gap = 3;
-  // 按 iPhone 常见尺寸（大号组件约 338×354pt）估算，内容过多时 iOS 会自动裁剪
-  const colW = Math.floor((312 - gap * (days.length - 1)) / days.length);
-  const unit = Math.floor(266 / maxP);
+  // 按 iPhone 常见尺寸（大号组件约 338×354pt）估算，放不下时 iOS 会自动裁剪
+  const colW = Math.floor((316 - gap * (days.length - 1)) / days.length);
+  const gridH = 262;
+  const unit = Math.floor(gridH / span);
 
   const grid = w.addStack();
   grid.layoutHorizontally();
   grid.spacing = gap;
-  days.forEach((d) => {
+  days.forEach((d, idx) => {
     const date = addDays(monday, d - 1);
     const isToday = diffDays(date, today) === 0;
     const col = grid.addStack();
     col.layoutVertically();
     col.size = new Size(colW, 0);
-    const h = hRow(col);
-    h.addSpacer();
-    addText(h, DAY_NAMES[d].slice(1), 11, isToday ? THEME.accent : THEME.secondary, isToday ? "bold" : "medium");
-    h.addSpacer();
+
+    // 列头：星期 + 日期（今天高亮）
+    const dayRow = hRow(col);
+    dayRow.addSpacer();
+    addText(dayRow, DAY_NAMES[d].slice(1), 10, isToday ? THEME.accent : THEME.secondary, "semibold");
+    dayRow.addSpacer();
+    col.addSpacer(2);
+    const dateRow = hRow(col);
+    dateRow.addSpacer();
+    const bubble = dateRow.addStack();
+    bubble.size = new Size(22, 22);
+    bubble.cornerRadius = 11;
+    bubble.centerAlignContent();
+    if (isToday) bubble.backgroundColor = THEME.accent;
+    bubble.addSpacer();
+    addText(bubble, String(date.getDate()), 12, isToday ? Color.white() : THEME.text, "semibold", { scale: 0.8 });
+    bubble.addSpacer();
+    dateRow.addSpacer();
     col.addSpacer(6);
-    const lessons = lessonsOn(date);
-    let p = 1;
-    lessons.forEach((l) => {
+
+    let p = minP;
+    lessonsByDay[idx].forEach((l) => {
       if (l.start < p) return; // 冲突的课只显示第一节
       if (l.start > p) col.addSpacer(unit * (l.start - p));
-      const span = l.end - l.start + 1;
+      const len = l.end - l.start + 1;
+      const past = l.endAt <= now;
+      const color = l.color || "#4F7CFF";
       const box = col.addStack();
-      box.layoutVertically();
-      box.size = new Size(colW, unit * span - 2);
-      box.cornerRadius = 5;
-      box.backgroundColor = new Color(l.color || "#4F7CFF", l.endAt <= now ? 0.45 : 0.9);
-      box.setPadding(3, 3, 3, 3);
-      addText(box, l.name, 9, Color.white(), "semibold", { lines: span > 1 ? 2 : 1, scale: 0.7 });
-      if (span > 1 && l.room) addText(box, l.room, 8, new Color("#FFFFFF", 0.85), "regular", { scale: 0.7 });
+      box.layoutHorizontally();
+      box.size = new Size(colW, unit * len - 3);
+      box.cornerRadius = 6;
+      box.backgroundColor = new Color(color, past ? 0.12 : 0.24);
+      const bar = box.addStack();
+      bar.size = new Size(3, unit * len - 3);
+      bar.backgroundColor = new Color(color, past ? 0.45 : 1);
+      const txt = box.addStack();
+      txt.layoutVertically();
+      txt.setPadding(3, 3, 3, 2);
+      const lines = Math.max(1, Math.min(4, Math.floor((unit * len - 8) / 12)));
+      addText(txt, l.name, 10, THEME.text, "semibold", { lines: l.room && lines > 2 ? lines - 1 : lines, scale: 0.8, opacity: past ? 0.5 : 1 });
+      if (l.room && lines > 2) addText(txt, l.room, 8, THEME.secondary, "regular", { lines: 1, scale: 0.75, opacity: past ? 0.5 : 1 });
+      txt.addSpacer();
       box.addSpacer();
-      col.addSpacer(2);
+      col.addSpacer(3);
       p = l.end + 1;
     });
     col.addSpacer();
@@ -385,24 +441,32 @@ function buildRectangular(w) {
   const l = focus.lessons[0];
   const s = w.addStack();
   s.layoutVertically();
+  const opt = { scale: 0.6 };
   if (!l) {
-    addText(s, weekLabel(), 12, Color.white(), "semibold");
-    addText(s, todayLessons.length ? "今天的课上完啦" : "今天没有课", 14, Color.white(), "bold");
+    addText(s, weekLabel(), 12, Color.white(), "semibold", opt);
+    addText(s, todayLessons.length ? "今天的课上完啦" : "今天没有课", 14, Color.white(), "bold", opt);
     return;
   }
-  const live = focus.offset === 0 && l.startAt <= now;
-  const top = focus.offset === 0 ? (live ? `上课中 · ${l.endText} 下课` : `${l.startText} · ${untilText(l.startAt)}`) : `${focus.label} ${l.startText}`;
-  addText(s, top, 12, Color.white(), "semibold", { opacity: 0.8 });
-  addText(s, l.name, 15, Color.white(), "bold");
-  addText(s, l.room || weekLabel(), 12, Color.white(), "regular", { opacity: 0.8 });
+  let top;
+  if (focus.offset !== 0) top = `${focus.label} ${l.startText} 上课`;
+  else if (l.startAt <= now) top = `上课中 · ${l.endText} 下课`;
+  else if (minutesUntil(l.startAt) < 60) top = `${l.startText} · ${untilText(l.startAt)}`;
+  else top = `${l.startText} 上课`;
+  addText(s, top, 12, Color.white(), "semibold", Object.assign({ opacity: 0.75 }, opt));
+  addText(s, l.name, 14, Color.white(), "bold", opt);
+  addText(s, l.room || weekLabel(), 12, Color.white(), "regular", Object.assign({ opacity: 0.75 }, opt));
 }
 
 function buildInline(w) {
   const l = focus.lessons[0];
-  let text = weekLabel();
-  if (l) text += ` · ${focus.offset === 0 ? "" : focus.label}${l.startText} ${l.name}${l.room ? " " + l.room : ""}`;
-  else text += todayLessons.length ? " · 今天的课上完啦" : " · 今天没有课";
-  addText(w, text, 12, Color.white(), "medium");
+  // 单行组件很窄：有课时只显示 时间 + 课名 + 教室
+  const wk = weekOf(today);
+  const inTerm = wk >= 1 && wk <= DATA.totalWeeks;
+  // 开学前 / 假期里保留"距开学 N 天"等提示
+  const text = l
+    ? `${inTerm ? "" : weekLabel() + " · "}${focus.offset === 0 ? "" : focus.label + " "}${l.startText} ${l.name}${l.room ? " " + l.room : ""}`
+    : `${weekLabel()} · ${todayLessons.length ? "今天的课上完啦" : "今天没有课"}`;
+  addText(w, text, 12, Color.white(), "medium", { scale: 0.7 });
 }
 
 function buildCircular(w) {

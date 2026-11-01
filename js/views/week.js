@@ -24,6 +24,54 @@ function go(delta) {
   app.render({ slide: delta > 0 ? 'left' : 'right' });
 }
 
+const reduceMotion = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/**
+ * 跟手的左右滑动切换周：课表随手指移动，松手时超过 1/4 宽度或滑得够快就切换，
+ * 否则弹回原位；第一周 / 最后一周再往外拖会有阻尼。
+ */
+function attachSwipe(wrap, grid, week) {
+  const total = app.data.totalWeeks;
+  let sx = 0; let sy = 0; let st = 0; let dx = 0;
+  let mode = ''; // '' 未确定 / 'x' 横向拖动 / 'y' 纵向滚动
+  const set = (x, animate) => {
+    grid.style.transition = animate ? 'transform .22s cubic-bezier(.2,.8,.2,1), opacity .22s' : 'none';
+    grid.style.transform = x ? `translate3d(${x}px,0,0)` : '';
+    grid.style.opacity = x ? String(Math.max(0.35, 1 - Math.abs(x) / (wrap.clientWidth * 1.4))) : '';
+  };
+  wrap.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1) return;
+    sx = e.touches[0].clientX; sy = e.touches[0].clientY; st = Date.now(); dx = 0; mode = '';
+  }, { passive: true });
+  wrap.addEventListener('touchmove', (e) => {
+    const x = e.touches[0].clientX - sx;
+    const y = e.touches[0].clientY - sy;
+    if (!mode) {
+      if (Math.abs(x) < 8 && Math.abs(y) < 8) return;
+      mode = Math.abs(x) > Math.abs(y) * 1.2 ? 'x' : 'y';
+    }
+    if (mode !== 'x') return;
+    const atEdge = (x > 0 && week <= 1) || (x < 0 && week >= total);
+    dx = atEdge ? x / 3 : x;
+    set(dx, false);
+  }, { passive: true });
+  const end = () => {
+    if (mode !== 'x') { mode = ''; return; }
+    mode = '';
+    const width = wrap.clientWidth || 360;
+    const velocity = Math.abs(dx) / Math.max(1, Date.now() - st);
+    const delta = dx < 0 ? 1 : -1;
+    const target = week + delta;
+    const passed = Math.abs(dx) > width * 0.25 || (velocity > 0.45 && Math.abs(dx) > 30);
+    if (!passed || target < 1 || target > total) { set(0, true); return; }
+    if (reduceMotion()) { go(delta); return; }
+    set(-delta * width, true);
+    setTimeout(() => go(delta), 180);
+  };
+  wrap.addEventListener('touchend', end, { passive: true });
+  wrap.addEventListener('touchcancel', () => { mode = ''; set(0, true); }, { passive: true });
+}
+
 function openWeekPicker() {
   const d = app.data;
   const cur = currentWeek(d);
@@ -35,7 +83,7 @@ function openWeekPicker() {
       Array.from({ length: d.totalWeeks }, (_, i) => i + 1).map((w) =>
         h('button', {
           class: `wk${w === shown ? ' sel' : ''}${w === cur ? ' cur' : ''}`,
-          onclick: () => { viewWeek = w; s.close(); app.render(); }
+          onclick: () => { const dir = w > shown ? 'left' : w < shown ? 'right' : ''; viewWeek = w; s.close(); app.render({ slide: dir }); }
         }, String(w))
       )
     ),
@@ -56,7 +104,7 @@ export function renderWeek() {
   const head = h('header', { class: 'week-head' },
     h('button', { class: 'icon-btn', 'aria-label': '上一周', disabled: week <= 1, onclick: () => go(-1), html: icon('left').innerHTML }),
     h('button', { class: 'week-title', onclick: openWeekPicker },
-      h('span', null, `第 ${week} 周`),
+      h('span', { class: 'week-num' }, `第 ${week} 周`),
       h('small', { class: week === cur ? 'accent' : '' }, label),
       icon('down')
     ),
@@ -116,14 +164,7 @@ export function renderWeek() {
   });
 
   const wrap = h('div', { class: 'grid-wrap' }, grid);
-  // 左右滑动切换周
-  let sx = 0; let sy = 0; let st = 0;
-  wrap.addEventListener('touchstart', (e) => { sx = e.touches[0].clientX; sy = e.touches[0].clientY; st = Date.now(); }, { passive: true });
-  wrap.addEventListener('touchend', (e) => {
-    const dx = e.changedTouches[0].clientX - sx;
-    const dy = e.changedTouches[0].clientY - sy;
-    if (Math.abs(dx) > 60 && Math.abs(dy) < Math.abs(dx) * 0.6 && Date.now() - st < 600) go(dx < 0 ? 1 : -1);
-  }, { passive: true });
+  attachSwipe(wrap, grid, week);
 
   return h('div', { class: 'page week' }, head, wrap);
 }

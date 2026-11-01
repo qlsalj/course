@@ -103,3 +103,15 @@ test('ICS：不导出学期总周数之外的周', () => {
   assert.ok(!/-w1[1-9]@/.test(ics));
   assert.match(ics, /-w10@/);
 });
+
+test('已经上完的课不再显示在组件里（小 / 中 / 大）', async () => {
+  // 周三 16:00：10:00 数据结构、14:00 马原 已结束，19:00 数据结构实验 还没上
+  for (const family of ['small', 'medium', 'large']) {
+    const { text } = await render('2026-11-04T16:00:00', family);
+    assert.ok(!/马克思主义基本原理/.test(text), `${family} 不应显示已结束的课`);
+    assert.match(text, /数据结构实验/, `${family} 应显示接下来的课`);
+  }
+  const { text } = await render('2026-11-04T16:00:00', 'large');
+  assert.match(text, /还剩 1 节/);
+  assert.match(text, /已上完 2 节/);
+});
