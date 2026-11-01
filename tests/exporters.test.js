@@ -205,3 +205,13 @@ test('倒计时用系统实时更新的相对时间，而不是写死的文字',
     assert.match(text, /还有 *19分钟/);
   }
 });
+
+test('课程行的倒计时只在一小时内出现（避免「还有 2小时 19分钟」放不下）', async () => {
+  const dates = (el, out = []) => { if (el.type === 'date') out.push(el); (el.children || []).forEach((c) => dates(c, out)); return out; };
+  const far = await runWidgetScript(script, { family: 'medium', now: new Date('2026-11-04T07:41:00') }); // 距 10:00 还有 2 小时 19 分
+  assert.equal(dates(far.widget).length, 0);
+  const near = await runWidgetScript(script, { family: 'medium', now: new Date('2026-11-04T09:41:00') });
+  const d = dates(near.widget);
+  assert.equal(d.length, 1);
+  assert.ok(d[0].minimumScaleFactor < 1);
+});

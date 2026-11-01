@@ -198,6 +198,7 @@ function addCountdown(parent, prefix, date, size, color, weight, opts) {
   d.font = weight === "semibold" ? Font.semiboldSystemFont(size) : weight === "medium" ? Font.mediumSystemFont(size) : Font.systemFont(size);
   d.textColor = color;
   d.lineLimit = 1;
+  d.minimumScaleFactor = 0.75; // 兜底：万一放不下，缩小而不是截断
   if (o.opacity != null) d.textOpacity = o.opacity;
   if (o.right) d.rightAlignText(); else d.leftAlignText();
   return row;
@@ -233,7 +234,9 @@ function lessonRow(parent, l, o) {
   if (o.status && !past) {
     if (live) {
       addText(row, "上课中", o.metaSize, THEME.live, "semibold");
-    } else if (l.startAt - now < 3 * 3600e3) {
+    } else if (l.startAt - now < 3600e3) {
+      // 只在一小时内显示倒计时：「还有 59分钟」以内的文字一定放得下这一列
+      // （开课前 2 小时内组件每 15 分钟刷新一次，进入一小时后就会出现）
       const cd = addCountdown(row, "还有 ", l.startAt, o.metaSize, THEME.accent, "medium", { right: true });
       cd.size = new Size(78, 0);
     }
