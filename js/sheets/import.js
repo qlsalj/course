@@ -6,10 +6,10 @@ import { parseImport } from '../importers.js';
 import { weeksText } from './editor.js';
 
 // 加载 jw/parsers.js + jw/importer.js 的代码。只用 ASCII 字符和单引号，
-// 避免 Safari 保存书签时改写特殊字符
-function loader(base) {
+// 避免 Safari 保存书签时改写特殊字符。done 为加载完成（或失败）后执行的代码
+function loader(base, done = '') {
   const b = base.replace(/'/g, "\\'");
-  return `var b='${b}';window.__COURSE_APP_URL__=b;function l(u,c){var s=document.createElement('script');s.src=b+u+'?v='+Date.now();s.charset='utf-8';s.onload=c||null;s.onerror=function(){alert('\\u5bfc\\u5165\\u811a\\u672c\\u52a0\\u8f7d\\u5931\\u8d25\\uff0c\\u8bf7\\u68c0\\u67e5\\u7f51\\u7edc')};(document.body||document.documentElement).appendChild(s)}l('jw/parsers.js',function(){l('jw/importer.js')});`;
+  return `var b='${b}';window.__COURSE_APP_URL__=b;var D=function(){${done}};function l(u,c){var s=document.createElement('script');s.src=b+u+'?v='+Date.now();s.charset='utf-8';s.onload=c;s.onerror=function(){alert('\\u5bfc\\u5165\\u811a\\u672c\\u52a0\\u8f7d\\u5931\\u8d25\\uff0c\\u8bf7\\u68c0\\u67e5\\u7f51\\u7edc');D()};(document.body||document.documentElement).appendChild(s)}l('jw/parsers.js',function(){l('jw/importer.js',D)});`;
 }
 
 /** 书签脚本（电脑浏览器 / iOS Safari 书签） */
@@ -17,9 +17,12 @@ export function bookmarklet(base) {
   return `javascript:(function(){${loader(base)}})();void 0`;
 }
 
-/** iOS 快捷指令「在网页上运行 JavaScript」使用的代码（必须调用 completion） */
+/**
+ * iOS 快捷指令「在网页上运行 JavaScript」使用的代码：
+ * 必须调用 completion()，这里等导入助手加载完成（最多 15 秒）再结束
+ */
 export function shortcutScript(base) {
-  return `${loader(base)}\ncompletion(true);`;
+  return `var F=0;function E(){if(!F){F=1;completion(true)}}setTimeout(E,15000);${loader(base, 'E()')}`;
 }
 
 export function openImportSheet() {
@@ -49,9 +52,10 @@ export function openImportSheet() {
           h('ol', { class: 'steps' },
             h('li', null, '打开「快捷指令」App → 右上角 ＋ 新建 → 添加操作，搜索并添加「在网页上运行 JavaScript」。'),
             h('li', null, '把操作里的默认代码全部删掉，粘贴这段代码：', h('button', { class: 'btn small primary', onclick: async () => toast((await copyText(shortcutScript(app.baseUrl))) ? '已复制快捷指令代码' : '复制失败') }, '复制代码')),
-            h('li', null, '点底部的 ⓘ（或顶部名称旁的下拉菜单）→ 打开「在共享表单中显示」，再把快捷指令命名为「导入课表」。'),
-            h('li', null, '如果运行时提示不允许运行脚本：打开系统「设置」→「快捷指令」→「高级」→ 打开「允许运行脚本」。'),
-            h('li', null, '在 Safari 中登录教务系统，打开「个人课表 / 学期课表」页面 → 点 Safari 的分享按钮 → 选「导入课表」。第一次运行会询问是否允许访问该网站，选允许。')
+            h('li', null, '点底部的 ⓘ → 打开「在共享表单中显示」。这时顶部会多出「从共享表单接收…」，点里面蓝色的类型，', h('b', null, '只保留「Safari 网页」'), '。'),
+            h('li', null, '确认操作写的是「在 ', h('b', null, '快捷指令输入'), ' 上运行 JavaScript」。如果显示成灰色的「网页」，点它选「快捷指令输入」。'),
+            h('li', null, '把快捷指令命名为「导入课表」。如果运行时提示不允许运行脚本：系统「设置」→「快捷指令」→「高级」→ 打开「允许运行脚本」。'),
+            h('li', null, h('b', null, '不要在快捷指令里点 ▶ 运行'), '（那里没有网页）。在 Safari 中登录教务系统，打开「个人课表 / 学期课表」页面 → 点 Safari 的分享按钮 → 选「导入课表」。第一次运行会询问是否允许访问该网站，选允许。')
           )
         ),
         h('details', { class: 'method' },
