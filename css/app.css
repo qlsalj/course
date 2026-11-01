@@ -164,13 +164,48 @@ textarea.input { resize: vertical; }
 .chip.soon { background: var(--accent-soft); color: var(--accent); }
 
 /* ---------------- 页面 ---------------- */
-.page { max-width: 760px; margin: 0 auto; padding: calc(var(--safe-t) + 12px) 16px 24px; animation: fade 0.18s ease; }
+.page { max-width: 760px; margin: 0 auto; padding: calc(var(--safe-t) + 12px) 16px 24px; }
 .page.week { max-width: 1100px; padding: var(--safe-t) 0 0; }
-@keyframes fade { from { opacity: 0.4; } to { opacity: 1; } }
-.slide-left .grid { animation: slideL 0.22s ease; }
-.slide-right .grid { animation: slideR 0.22s ease; }
-@keyframes slideL { from { transform: translateX(24px); opacity: 0.3; } to { transform: none; opacity: 1; } }
-@keyframes slideR { from { transform: translateX(-24px); opacity: 0.3; } to { transform: none; opacity: 1; } }
+/* ---------------- 动画 ---------------- */
+:root { --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1); --spring: cubic-bezier(0.34, 1.4, 0.64, 1); }
+/* 切换页面 */
+.page.enter { animation: pageIn 0.28s var(--ease-out); }
+@keyframes pageIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+/* 切换周：新的一周从滑动方向进入，周数标题跟着上下滚动 */
+.slide-left .grid { animation: weekInL 0.3s var(--ease-out); }
+.slide-right .grid { animation: weekInR 0.3s var(--ease-out); }
+@keyframes weekInL { from { transform: translateX(40%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes weekInR { from { transform: translateX(-40%); opacity: 0; } to { transform: none; opacity: 1; } }
+.slide-left .week-num { display: inline-block; animation: numUp 0.3s var(--ease-out); }
+.slide-right .week-num { display: inline-block; animation: numDown 0.3s var(--ease-out); }
+@keyframes numUp { from { transform: translateY(60%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes numDown { from { transform: translateY(-60%); opacity: 0; } to { transform: none; opacity: 1; } }
+.grid { will-change: transform; }
+/* 进入课表页时课程块依次浮现 */
+.page.week.enter .course { animation: pop 0.35s var(--ease-out) backwards; }
+.page.week.enter .course:nth-of-type(3n+1) { animation-delay: 0.03s; }
+.page.week.enter .course:nth-of-type(3n+2) { animation-delay: 0.07s; }
+.page.week.enter .course:nth-of-type(3n) { animation-delay: 0.11s; }
+@keyframes pop { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: none; } }
+/* 今天页：卡片依次上浮 */
+.page.today.enter .now-card, .page.today.enter .lesson { animation: rise 0.4s var(--ease-out) backwards; }
+.page.today.enter .lesson:nth-child(2) { animation-delay: 0.04s; }
+.page.today.enter .lesson:nth-child(3) { animation-delay: 0.08s; }
+.page.today.enter .lesson:nth-child(n+4) { animation-delay: 0.12s; }
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+.progress i { transition: width 0.6s var(--ease-out); }
+/* 按压反馈 */
+.course, .lesson, .row.tappable, .wk, .swatch, .icon-btn, .tab { transition: transform 0.15s var(--ease-out), background-color 0.15s, opacity 0.15s; }
+.course:active, .lesson:active { transform: scale(0.96); }
+.wk:active, .swatch:active { transform: scale(0.9); }
+.tab:active { transform: scale(0.92); }
+.tab.active .icon { animation: tabPop 0.35s var(--spring); }
+@keyframes tabPop { 0% { transform: scale(0.8); } 100% { transform: scale(1); } }
+.sheet-backdrop.open .sheet { transition: transform 0.32s var(--ease-out); }
+#toast { transition: opacity 0.2s, transform 0.3s var(--spring); }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-delay: 0s !important; transition-duration: 0.01ms !important; }
+}
 
 .page-head { padding: 12px 4px 16px; }
 .page-head h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.5px; }

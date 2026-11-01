@@ -273,6 +273,10 @@ function renderEl(el, parentLayout, ctx) {
       s.display = '-webkit-box'; s.webkitBoxOrient = 'vertical'; s.webkitLineClamp = String(el.lineLimit); s.overflow = 'hidden';
     }
     if (parentLayout === 'root') s.alignSelf = 'stretch';
+    if (el.minimumScaleFactor < 1) {
+      node.dataset.fit = String(f.size || 17);
+      node.dataset.min = String((f.size || 17) * el.minimumScaleFactor);
+    }
     return node;
   }
   if (el.type === 'image') {
@@ -309,6 +313,22 @@ function renderEl(el, parentLayout, ctx) {
   }
   el.children.forEach((c) => node.appendChild(renderEl(c, el.layout, ctx)));
   return node;
+}
+
+/**
+ * 模拟 minimumScaleFactor：文字放不下时先缩小字号（最多缩到 size × 比例），再截断。
+ * 需要在节点插入页面、完成布局之后调用。
+ */
+export function fitWidgetText(root) {
+  root.querySelectorAll('[data-fit]').forEach((node) => {
+    let size = Number(node.dataset.fit);
+    const min = Number(node.dataset.min);
+    const overflow = () => node.scrollWidth > node.clientWidth + 0.5 || node.scrollHeight > node.clientHeight + 0.5;
+    while (overflow() && size > min) {
+      size = Math.max(min, size - 0.5);
+      node.style.fontSize = `${size}px`;
+    }
+  });
 }
 
 /** 渲染为 DOM 元素 */
