@@ -634,6 +634,21 @@
   /* 在教务系统页面内运行：先尝试 API，再解析 DOM                               */
   /* ------------------------------------------------------------------ */
 
+  /** 当前页面中无法读取的跨域框架（校园门户里嵌套的教务系统常见） */
+  function crossOriginFrames(win) {
+    var out = [];
+    collectDocuments(win).forEach(function (doc) {
+      var frames = doc.querySelectorAll('iframe[src], frame[src]');
+      for (var i = 0; i < frames.length; i++) {
+        var f = frames[i];
+        var readable = false;
+        try { readable = !!(f.contentWindow && f.contentWindow.document); } catch (e) { readable = false; }
+        if (!readable && /^https?:/.test(f.src)) out.push(f.src);
+      }
+    });
+    return out.filter(function (u, i) { return out.indexOf(u) === i; });
+  }
+
   function collectDocuments(win) {
     var docs = [];
     (function walk(w, depth) {
@@ -728,6 +743,7 @@
     parseDocuments: parseDocuments,
     parseHtml: parseHtml,
     collectDocuments: collectDocuments,
+    crossOriginFrames: crossOriginFrames,
     zhengfangBase: zhengfangBase,
     extractFromWindow: extractFromWindow
   };
