@@ -179,3 +179,14 @@ test('小号组件：放得下的文字不允许缩放（否则 iOS 会为了分
   const ln = texts(r.widget).find((x) => x.text.startsWith('马克思'));
   assert.ok(ln.minimumScaleFactor < 1);
 });
+
+test('小号组件按屏幕宽度判断文字是否放得下（SE 上更早缩小）', async () => {
+  const texts = (el, out = []) => { if (el.type === 'text') out.push(el); (el.children || []).forEach((c) => texts(c, out)); return out; };
+  const s2 = await buildWidgetScript(template, sanitize({ ...data, courses: [{ name: '计算机网络基础A', room: 'A101', day: 3, start: 3, end: 4, weeks: [] }] }), { appUrl: 'https://x/' });
+  const scaleOn = async (screen) => {
+    const { widget } = await runWidgetScript(s2, { family: 'small', now: new Date('2026-11-04T08:20:00'), screen });
+    return texts(widget).find((t) => t.text === '计算机网络基础A').minimumScaleFactor;
+  };
+  assert.ok((await scaleOn([375, 667])) < 1, 'SE（148pt）上放不下，应允许缩小');
+  assert.equal(await scaleOn([440, 956]), 1, 'Pro Max（170pt）上放得下，不缩放');
+});

@@ -172,6 +172,21 @@ function scaleToFit(str, size, width, min) {
   return need <= width ? 1 : Math.max(min, width / need);
 }
 
+/**
+ * 小号组件的边长（pt），按屏幕宽度对照 Apple 公布的尺寸估算，宁小勿大：
+ * 估小了只是长文字多缩一点，估大了放不下的文字会被截断而不是缩小。
+ */
+function smallWidgetSide() {
+  let s = { width: 390, height: 844 };
+  try { s = Device.screenSize(); } catch (e) { /* 预览环境 */ }
+  if (s.width >= 428) return 170;
+  if (s.width >= 414) return 169;
+  if (s.width >= 402) return 162;
+  if (s.width >= 390) return 158;
+  if (s.width >= 375 && s.height >= 812) return 155;
+  return 148;
+}
+
 function hRow(parent) {
   const s = parent.addStack();
   s.layoutHorizontally();
@@ -261,7 +276,8 @@ function buildSmall(w) {
   const shown = focus.lessons.slice(0, 2);
   shown.forEach((l, i) => {
     if (i) w.addSpacer();
-    lessonRow(w, l, { height: 34, nameSize: 15, metaSize: 12, compact: true, textWidth: 118 });
+    // 可用宽度 = 边长 - 左右内边距 28 - 色条 4 - 间距 7
+    lessonRow(w, l, { height: 34, nameSize: 15, metaSize: 12, compact: true, textWidth: smallWidgetSide() - 39 });
   });
   w.addSpacer();
   const foot = hRow(w);
