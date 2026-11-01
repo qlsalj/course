@@ -143,7 +143,7 @@ export function widgetData(data) {
  * 根据模板（scriptable/widget.js）生成 Scriptable 脚本
  * @param {string} template 模板源码
  */
-export async function buildWidgetScript(template, data, { appUrl, page = 'today', withSnapshot = true } = {}) {
+export async function buildWidgetScript(template, data, { appUrl, page = 'today', largeMode = 'today', withSnapshot = true } = {}) {
   const snapshot = withSnapshot ? await encodeData(snapshotOf(data)) : '';
   const now = new Date();
   const generated = `${formatDate(now)} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
@@ -156,6 +156,7 @@ export async function buildWidgetScript(template, data, { appUrl, page = 'today'
   let out = template;
   out = replace(out, 'APP_URL', JSON.stringify(appUrl || ''));
   out = replace(out, 'PAGE', JSON.stringify(page));
+  out = replace(out, 'LARGE', JSON.stringify(largeMode === 'week' ? 'week' : 'today'));
   out = replace(out, 'GENERATED', JSON.stringify(generated));
   out = replace(out, 'SNAPSHOT', JSON.stringify(snapshot));
   out = replace(out, 'DATA', json);
