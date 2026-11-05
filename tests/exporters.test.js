@@ -25,7 +25,7 @@ test('CSV 导出可再导入', () => {
   assert.equal(back.courses.length, data.courses.length);
 });
 
-const script = await buildWidgetScript(template, data, { appUrl: 'https://example.github.io/course/' });
+const script = await buildWidgetScript(template, data, { appUrl: 'https://example.github.io/course/', tapMode: 'safari' });
 
 async function render(time, family, parameter = '', screen) {
   const { widget } = await runWidgetScript(script, { family, parameter, now: new Date(time), screen });
@@ -150,7 +150,7 @@ test('大号组件按屏幕大小放满课程（大屏多显示明天的课）',
 });
 
 test('大号组件默认显示整周；Parameter 可以覆盖', async () => {
-  const weekScript = await buildWidgetScript(template, data, { appUrl: 'https://example.github.io/course/', largeMode: 'week' });
+  const weekScript = await buildWidgetScript(template, data, { appUrl: 'https://example.github.io/course/', largeMode: 'week', tapMode: 'safari' });
   const run = async (code, parameter) => {
     const { widget } = await runWidgetScript(code, { family: 'large', parameter, now: new Date('2026-11-04T10:20:00') });
     return { text: widgetText(widget), url: widget.url };
@@ -214,4 +214,20 @@ test('课程行的倒计时只在一小时内出现（避免「还有 2小时 19
   const d = dates(near.widget);
   assert.equal(d.length, 1);
   assert.ok(d[0].minimumScaleFactor < 1);
+});
+
+test('点击小组件：默认用 scriptable:// 运行本脚本，在 Scriptable 里显示完整课表', async () => {
+  const s2 = await buildWidgetScript(template, data, { appUrl: 'https://example.github.io/course/' });
+  let r = await runWidgetScript(s2, { family: 'medium', now: new Date('2026-11-04T09:41:00'), scriptName: '我的 课表' });
+  assert.equal(r.widget.url, 'scriptable:///run/' + encodeURIComponent('我的 课表') + '?view=today');
+  r = await runWidgetScript(s2, { family: 'large', parameter: 'week', now: new Date('2026-11-04T09:41:00') });
+  assert.match(r.widget.url, /\?view=week$/);
+  // 从链接运行：展示 WebView，页面里带着全部课程数据，不需要联网
+  r = await runWidgetScript(s2, { inApp: true, query: { view: 'week' }, now: new Date('2026-11-04T09:41:00') });
+  assert.ok(r.webview && r.webview.presented, '应显示 WebView');
+  assert.match(r.webview.html, /数据结构/);
+  assert.ok(!/<script[^>]+src=/.test(r.webview.html), '不应加载任何外部脚本');
+  // 「网页版」链接交给 Safari 打开
+  assert.equal(r.webview.shouldAllowRequest({ url: 'https://example.github.io/course/#/week' }), false);
+  assert.equal(r.opened[0], 'https://example.github.io/course/#/week');
 });

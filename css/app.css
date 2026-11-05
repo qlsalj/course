@@ -559,3 +559,5 @@ textarea.input { resize: vertical; }
 .method > summary { font-weight: 600; cursor: pointer; padding: 4px 0; color: var(--accent); }
 .sub-method { margin: 8px 0 4px; padding-left: 4px; }
 .sub-method > summary { cursor: pointer; color: var(--muted); font-size: 14px; padding: 4px 0; }
+
+.cache-status { font-size: 12px; color: var(--muted); margin: 6px 16px; }

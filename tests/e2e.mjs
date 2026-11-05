@@ -273,6 +273,10 @@ await step('线上版本：缓存优先秒开、离线可用、后台更新后�
     await page.waitForSelector('.page.today', { timeout: 10000 });
     const ms = Date.now() - t0;
     assert.ok(ms < 1500, `缓存启动应很快，实际 ${ms}ms`);
+    // 设置页显示缓存状态和版本
+    await page.goto('http://localhost:8091/index.html#/settings');
+    await page.locator('.cache-status').filter({ hasText: '已启用（版本' }).waitFor({ timeout: 10000 });
+    await page.goto('http://localhost:8091/index.html#/today');
     // 离线也能打开
     await ctx.setOffline(true);
     await page.reload();
@@ -291,6 +295,35 @@ await step('线上版本：缓存优先秒开、离线可用、后台更新后�
     server.kill();
     await ctx.close();
   }
+});
+
+await step('点击小组件后在 Scriptable 里显示的课表页（离线 HTML）', async () => {
+  const page = await newPage('2026-11-04T09:41:00');
+  await page.goto(APP);
+  const html = await page.evaluate(async (demo) => {
+    const { buildWidgetScript } = await import('./js/exporters.js');
+    const { sanitize } = await import('./js/store.js');
+    const { runWidgetScript } = await import('./js/widget-preview.js');
+    const tpl = await (await fetch('scriptable/widget.js')).text();
+    const code = await buildWidgetScript(tpl, sanitize(JSON.parse(demo)), { appUrl: location.origin + '/' });
+    const r = await runWidgetScript(code, { inApp: true, query: { view: 'today' } });
+    return r.webview.html;
+  }, fixture('demo.json'));
+  const tt = await newPage('2026-11-04T09:41:00');
+  await tt.route('**/*', (route) => route.abort()); // 完全离线
+  await tt.setContent(html);
+  assert.match(await tt.textContent('h1'), /第9周/);
+  assert.match(await tt.textContent('main'), /今天[\s\S]*数据结构[\s\S]*明天/);
+  await tt.click('nav button[data-tab="week"]');
+  await tt.waitForSelector('.grid .cb');
+  assert.match(await tt.textContent('.wk span'), /第 9 周\s*本周/);
+  await tt.click('.wk button[data-w="1"]');
+  assert.match(await tt.textContent('.wk span'), /第 10 周/);
+  await tt.click('.wk button[data-w="-1"]');
+  await tt.click('.cb:has-text("数据结构")');
+  assert.match(await tt.textContent('#sheet'), /数据结构[\s\S]*教室：计算机楼310/);
+  await tt.context().close();
+  await page.context().close();
 });
 
 await step('手动添加课程', async () => {
