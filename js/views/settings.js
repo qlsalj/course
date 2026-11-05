@@ -21,25 +21,25 @@ function askVersion(sw) {
 
 /** 设置页底部的离线缓存状态，方便判断"为什么打开慢" */
 function cacheStatus() {
-  const el = h('p', { class: 'cache-status' }, '离线缓存：检查中…');
+  const el = h('p', { class: 'cache-status' }, '离线缓存 · 检查中');
   (async () => {
-    if (!('serviceWorker' in navigator)) { el.textContent = '离线缓存：当前浏览器不支持'; return; }
+    if (!('serviceWorker' in navigator)) { el.textContent = '当前浏览器不支持离线缓存'; return; }
     const reg = await navigator.serviceWorker.getRegistration();
     const ctl = navigator.serviceWorker.controller;
     const pending = reg && (reg.installing || reg.waiting);
     let text;
     if (!ctl) {
-      text = '离线缓存：还没启用，下次打开生效';
+      text = '离线缓存将在下次打开时启用';
     } else {
       const v = await askVersion(ctl);
-      if (v === 'dev') text = '离线缓存：开发模式（网络优先）';
-      else if (v) text = `离线缓存：已启用（版本 ${v.slice(0, 8)}），打开时直接读取本机缓存`;
-      else text = '离线缓存：旧版（每次打开都要先联网，所以慢）';
+      if (v === 'dev') text = '离线缓存 · 开发模式';
+      else if (v) text = `离线缓存已启用 · ${v.slice(0, 8)}`;
+      else text = '离线缓存 · 旧版本，正在等待更新';
     }
-    if (pending) text += ' · 正在后台下载新版本，请保持 App 打开一会儿';
+    if (pending) text += ' · 正在下载新版本';
     el.textContent = text;
-    if (reg && reg.installing) reg.installing.addEventListener('statechange', () => { el.textContent = text.replace(/ · .*$/, '') + ' · 新版本已下载，下次打开生效'; });
-  })().catch(() => { el.textContent = '离线缓存：状态未知'; });
+    if (reg && reg.installing) reg.installing.addEventListener('statechange', () => { el.textContent = text.replace(/ · .*$/, '') + ' · 新版本已就绪，重新打开后生效'; });
+  })().catch(() => { el.textContent = '离线缓存 · 状态未知'; });
   return el;
 }
 

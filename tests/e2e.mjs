@@ -252,7 +252,7 @@ await step('课表左右拖动切换周（跟手、未过阈值弹回）', async
   await ctx.close();
 });
 
-await step('线上版本：缓存优先秒开、离线可用、后台更新后提示', async () => {
+await step('线上版本：缓存优先、离线可用、后台更新后提示', async () => {
   const { buildSite } = await import('../tools/build-site.mjs');
   const root = new URL('..', import.meta.url).pathname;
   const out = mkdtempSync(join(tmpdir(), 'site-'));
@@ -275,7 +275,7 @@ await step('线上版本：缓存优先秒开、离线可用、后台更新后�
     assert.ok(ms < 1500, `缓存启动应很快，实际 ${ms}ms`);
     // 设置页显示缓存状态和版本
     await page.goto('http://localhost:8091/index.html#/settings');
-    await page.locator('.cache-status').filter({ hasText: '已启用（版本' }).waitFor({ timeout: 10000 });
+    await page.locator('.cache-status').filter({ hasText: '离线缓存已启用 · ' }).waitFor({ timeout: 10000 });
     await page.goto('http://localhost:8091/index.html#/today');
     // 离线也能打开
     await ctx.setOffline(true);
@@ -290,7 +290,7 @@ await step('线上版本：缓存优先秒开、离线可用、后台更新后�
     appendFileSync(join(src, 'css/app.css'), '\n/* new release */\n');
     buildSite(src, out);
     await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
-    await page.locator('#toast').filter({ hasText: '新版本已下载好' }).waitFor({ timeout: 60000 });
+    await page.locator('#toast').filter({ hasText: '已更新，重新打开后生效' }).waitFor({ timeout: 60000 });
   } finally {
     server.kill();
     await ctx.close();
