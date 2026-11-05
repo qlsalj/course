@@ -181,8 +181,9 @@ jw/
   parsers.js             教务系统课表解析（普通脚本，PWA 和教务页面共用）
   importer.js            注入教务页面的「课表导入助手」界面
 scriptable/widget.js     Scriptable 小组件模板（导出时填入数据）
-sw.js                    Service Worker（网络优先，离线时用缓存）
+sw.js                    Service Worker（线上缓存优先、整体更新；本地开发网络优先）
 tools/serve.mjs          本地 / CI 用的静态服务器
+tools/build-site.mjs     生成部署目录：写入版本号和文件清单到 sw.js，加 modulepreload
 tests/                   单元测试、端到端测试、各教务系统的样例页面
 ```
 

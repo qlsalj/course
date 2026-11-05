@@ -1,7 +1,10 @@
 // 端到端测试（需要先在 8080 端口启动静态服务：npm start）
 // node tests/e2e.mjs
 import { createRequire } from 'node:module';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, appendFileSync, cpSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawn } from 'node:child_process';
 import assert from 'node:assert/strict';
 
 const { chromium } = createRequire(import.meta.url)('playwright');
@@ -247,6 +250,47 @@ await step('课表左右拖动切换周（跟手、未过阈值弹回）', async
   await drag(60, 330, 8, 16); // 向右：回到上一周
   assert.equal(await title(), '第 9 周');
   await ctx.close();
+});
+
+await step('线上版本：缓存优先秒开、离线可用、后台更新后提示', async () => {
+  const { buildSite } = await import('../tools/build-site.mjs');
+  const root = new URL('..', import.meta.url).pathname;
+  const out = mkdtempSync(join(tmpdir(), 'site-'));
+  buildSite(root, out);
+  // 每个请求都延迟 2.5 秒，模拟很慢的网络
+  const server = spawn(process.execPath, [join(root, 'tools/serve.mjs'), '8091', out], { env: { ...process.env, DELAY_MS: '2500' }, stdio: 'ignore' });
+  await new Promise((r) => setTimeout(r, 600));
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => errors.push(e.message));
+  try {
+    await page.goto('http://localhost:8091/#/today', { timeout: 60000 });
+    await page.evaluate(() => navigator.serviceWorker.ready);
+    await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 60000 });
+    // 再次打开：全部从缓存读取，不受 2.5 秒的网络延迟影响
+    const t0 = Date.now();
+    await page.goto('http://localhost:8091/index.html#/today');
+    await page.waitForSelector('.page.today', { timeout: 10000 });
+    const ms = Date.now() - t0;
+    assert.ok(ms < 1500, `缓存启动应很快，实际 ${ms}ms`);
+    // 离线也能打开
+    await ctx.setOffline(true);
+    await page.reload();
+    await page.waitForSelector('.page.today', { timeout: 10000 });
+    await ctx.setOffline(false);
+    // 部署新版本：改动一个文件后重新构建到同一目录 → 后台安装 → 提示「下次打开时生效」
+    const src = mkdtempSync(join(tmpdir(), 'src-'));
+    for (const e of ['index.html', 'manifest.webmanifest', 'sw.js', '.nojekyll', 'css', 'js', 'jw', 'scriptable', 'icons']) {
+      cpSync(join(root, e), join(src, e), { recursive: true });
+    }
+    appendFileSync(join(src, 'css/app.css'), '\n/* new release */\n');
+    buildSite(src, out);
+    await page.evaluate(async () => (await navigator.serviceWorker.getRegistration()).update());
+    await page.locator('#toast').filter({ hasText: '新版本已下载好' }).waitFor({ timeout: 60000 });
+  } finally {
+    server.kill();
+    await ctx.close();
+  }
 });
 
 await step('手动添加课程', async () => {
