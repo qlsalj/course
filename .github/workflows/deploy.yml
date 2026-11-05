@@ -49,10 +49,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Collect site files
-        run: |
-          mkdir _site
-          cp -r index.html manifest.webmanifest sw.js .nojekyll css js jw scriptable icons _site/
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # 复制站点文件，写入版本号（所有文件的哈希）和文件清单到 sw.js，给 index.html 加 modulepreload
+      - name: Build site
+        run: node tools/build-site.mjs _site
 
       - uses: actions/configure-pages@v5
 
