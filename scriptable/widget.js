@@ -20,7 +20,7 @@ const APP_URL = /*@APP_URL*/"";
 const OPEN_PAGE = /*@PAGE*/"today";
 // 大号组件默认显示什么："today" 今日课程 / "week" 整周课表（单个组件可用 Parameter 覆盖）
 const LARGE_MODE = /*@LARGE*/"today";
-// 点击小组件："scriptable" 在 Scriptable 里直接打开课表（不联网，秒开）/ "safari" 用 Safari 打开网页版
+// 点击小组件："scriptable" 在 Scriptable 中显示课表（无需联网）/ "safari" 在 Safari 中打开网页版
 const TAP_MODE = /*@TAP*/"scriptable";
 const GENERATED_AT = /*@GENERATED*/"";
 const SNAPSHOT = /*@SNAPSHOT*/"";
@@ -828,7 +828,7 @@ if (config.runsInWidget) {
   const alert = new Alert();
   alert.title = DATA ? `${DATA.name} · ${weekLabel()}` : "课表小组件";
   alert.message = GENERATED_AT ? `数据生成于 ${GENERATED_AT}` : "";
-  const options = [["查看完整课表", "timetable"], ["小号", "small"], ["中号", "medium"], ["大号", "large"], ["大号 · 整周", "week"], ["用 Safari 打开网页版", "open"]];
+  const options = [["查看完整课表", "timetable"], ["小号", "small"], ["中号", "medium"], ["大号", "large"], ["大号 · 整周", "week"], ["在 Safari 中打开网页版", "open"]];
   options.forEach((o) => alert.addAction(o[0]));
   alert.addCancelAction("取消");
   const i = await alert.presentSheet();

@@ -36,8 +36,8 @@ export function openWidgetSheet() {
     h('option', { value: 'week', selected: app.prefs.widgetPage === 'week' }, '本周课表')
   );
   const tapSel = h('select', { class: 'input inline' },
-    h('option', { value: 'scriptable', selected: app.prefs.widgetTap !== 'safari' }, '在 Scriptable 里看课表（秒开、离线）'),
-    h('option', { value: 'safari', selected: app.prefs.widgetTap === 'safari' }, '用 Safari 打开网页版')
+    h('option', { value: 'scriptable', selected: app.prefs.widgetTap !== 'safari' }, '在 Scriptable 中查看课表'),
+    h('option', { value: 'safari', selected: app.prefs.widgetTap === 'safari' }, '在 Safari 中打开网页版')
   );
   tapSel.addEventListener('change', async () => {
     app.prefs.widgetTap = tapSel.value;
@@ -136,7 +136,7 @@ export function openWidgetSheet() {
           h('li', null, '回到桌面，长按空白处 → 左上角 ＋ → 搜索 Scriptable → 选择小/中/大号组件添加。'),
           h('li', null, '长按刚添加的组件 →「编辑小组件」→ Script 选择刚才的脚本。锁屏组件同理（圆形显示周数，长条显示下一节课）。'),
           h('li', null, h('b', null, '同时要「今日」和「整周」？'), '不用新建脚本：在桌面添加两个大号 Scriptable 组件，都选这个脚本，其中一个的 Parameter 填 ', h('code', null, 'week'), '，它就显示整周课表。Parameter 填 ', h('code', null, 'today'), ' 强制显示今日课程，填 ', h('code', null, 'tomorrow'), ' 显示明天。'),
-          h('li', null, '点击小组件默认会打开 Scriptable 显示完整课表（今天 / 整周，可左右滑动切换周）。课表数据就在脚本里，不用联网，所以很快；要修改课程时点右上角「网页版」。'),
+          h('li', null, '点击小组件会在 Scriptable 中显示完整课表，可在今天和整周之间切换，左右滑动换周。课表随脚本一起保存，无需联网。修改课程请点右上角「网页版」。'),
         ),
         h('p', { class: 'muted small' }, '⚠️ 小组件里的课表是导出那一刻的副本。修改课表后，需要重新复制脚本、在 Scriptable 中覆盖原内容。')
       ),

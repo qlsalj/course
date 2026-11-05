@@ -138,7 +138,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   // 已经有旧版本在控制页面时，新版本接管就提示一下（第一次安装不提示）
   const hadController = !!navigator.serviceWorker.controller;
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (hadController) toast('新版本已下载好，下次打开时生效', 3500);
+    if (hadController) toast('已更新，重新打开后生效', 3000);
   });
   navigator.serviceWorker.register('sw.js').then((reg) => {
     // iOS 主屏幕 App 常驻后台，切回前台时主动检查一次更新
