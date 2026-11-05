@@ -134,7 +134,8 @@ export function widgetData(data) {
     totalWeeks: data.totalWeeks,
     periods: data.periods.map((p) => [p.start, p.end]),
     courses: data.courses.map((c) => ({
-      name: c.name, room: c.room, teacher: c.teacher, day: c.day, start: c.start, end: c.end, weeks: c.weeks, color: c.color
+      name: c.name, room: c.room, teacher: c.teacher, day: c.day, start: c.start, end: c.end, weeks: c.weeks, color: c.color,
+      ...(c.note ? { note: c.note } : {})
     }))
   };
 }

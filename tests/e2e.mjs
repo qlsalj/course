@@ -323,6 +323,29 @@ await step('点击小组件后在 Scriptable 里显示的课表页（离线 HTML
   await tt.click('.cb:has-text("数据结构")');
   assert.match(await tt.textContent('#sheet'), /数据结构[\s\S]*教室：计算机楼310/);
   await tt.context().close();
+
+  // 重叠的课合并成一个块（+n），点开能看到全部，备注也会显示
+  const html2 = await page.evaluate(async () => {
+    const { buildWidgetScript } = await import('./js/exporters.js');
+    const { sanitize } = await import('./js/store.js');
+    const { runWidgetScript } = await import('./js/widget-preview.js');
+    const tpl = await (await fetch('scriptable/widget.js')).text();
+    const data = sanitize({ startDate: '2026-09-07', totalWeeks: 18, courses: [
+      { name: '课程甲', day: 3, start: 1, end: 2, weeks: [] },
+      { name: '课程乙', day: 3, start: 2, end: 4, weeks: [], note: '带实验报告' }
+    ] });
+    const code = await buildWidgetScript(tpl, data, { appUrl: location.origin + '/' });
+    return (await runWidgetScript(code, { inApp: true, query: { view: 'week' } })).webview.html;
+  });
+  const t2 = await newPage('2026-11-04T09:41:00');
+  await t2.setContent(html2);
+  const blocks = await t2.$$eval('.cb', (els) => els.map((e) => [e.textContent, e.style.gridRow]));
+  assert.equal(blocks.length, 1);
+  assert.match(blocks[0][0], /课程甲[\s\S]*\+1/);
+  assert.match(blocks[0][1], /2 \/ 6/, '块应覆盖第 1-4 节');
+  await t2.click('.cb');
+  assert.match(await t2.textContent('#sheet'), /课程甲[\s\S]*课程乙[\s\S]*备注：带实验报告/);
+  await t2.context().close();
   await page.context().close();
 });
 

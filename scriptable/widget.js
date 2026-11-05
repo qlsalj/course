@@ -676,12 +676,19 @@ function timetablePage(P) {
       g += '<div class="pn" style="grid-row:' + (p + 1) + '"><b>' + p + "</b>" + (per ? per[0] : "") + "</div>";
     }
     days.forEach((d, i) => {
-      const list = D.courses.filter((c) => c.day === d).sort((a, b) => a.start - b.start);
-      let end = 0;
-      list.filter((c) => inWeek(c, w)).forEach((c) => {
-        if (c.start <= end) return;
-        end = c.end;
-        g += '<div class="cb" data-i="' + D.courses.indexOf(c) + '" style="grid-column:' + (i + 2) + ";grid-row:" + (c.start + 1) + " / " + (c.end + 2) + ";--c:" + esc(c.color || "#4F7CFF") + '"><b>' + esc(c.name) + "</b>" + (c.room ? "<span>@" + esc(c.room) + "</span>" : "") + "</div>";
+      // 互相重叠（含连锁重叠）的课合并成一个块，块覆盖所有这些课的节次，显示 +n，点开能看到全部
+      const list = D.courses.filter((c) => c.day === d && inWeek(c, w)).sort((a, b) => a.start - b.start || b.end - a.end);
+      const blocks = [];
+      list.forEach((c) => {
+        const last = blocks[blocks.length - 1];
+        if (last && c.start <= last.end) { last.items.push(c); last.end = Math.max(last.end, c.end); }
+        else blocks.push({ start: c.start, end: c.end, items: [c] });
+      });
+      blocks.forEach((b) => {
+        const c = b.items[0];
+        const ids = b.items.map((x) => D.courses.indexOf(x)).join(",");
+        g += '<div class="cb" data-i="' + ids + '" style="grid-column:' + (i + 2) + ";grid-row:" + (b.start + 1) + " / " + (b.end + 2) + ";--c:" + esc(c.color || "#4F7CFF") + '"><b>' + esc(c.name) + "</b>" +
+          (c.room ? "<span>@" + esc(c.room) + "</span>" : "") + (b.items.length > 1 ? '<i class="more">+' + (b.items.length - 1) + "</i>" : "") + "</div>";
       });
     });
     return g + "</div>";
@@ -706,10 +713,12 @@ function timetablePage(P) {
     if (t.dataset.tab) { state.tab = t.dataset.tab; render(); }
     else if (t.dataset.w) { state.week = clamp(state.week + Number(t.dataset.w)); render(); }
     else if (t.dataset.i) {
-      const c = D.courses[Number(t.dataset.i)];
+      const list = t.dataset.i.split(",").map((n) => D.courses[Number(n)]);
       const sh = document.getElementById("sheet");
-      sh.innerHTML = '<div class="card" style="--c:' + esc(c.color) + '"><h2>' + esc(c.name) + "</h2><p>周" + DAYS[c.day] + " 第" + c.start + (c.end > c.start ? "-" + c.end : "") + "节 " + esc(time(c)) + "</p>" +
-        (c.room ? "<p>教室：" + esc(c.room) + "</p>" : "") + (c.teacher ? "<p>教师：" + esc(c.teacher) + "</p>" : "") + "<small>点任意处关闭</small></div>";
+      sh.innerHTML = '<div class="card" style="--c:' + esc(list[0].color) + '">' + list.map((c) =>
+        '<section style="--c:' + esc(c.color) + '"><h2>' + esc(c.name) + "</h2><p>周" + DAYS[c.day] + " 第" + c.start + (c.end > c.start ? "-" + c.end : "") + "节 " + esc(time(c)) + "</p>" +
+        (c.room ? "<p>教室：" + esc(c.room) + "</p>" : "") + (c.teacher ? "<p>教师：" + esc(c.teacher) + "</p>" : "") +
+        (c.note ? '<p class="note">备注：' + esc(c.note) + "</p>" : "") + "</section>").join("") + "<small>点任意处关闭</small></div>";
       sh.hidden = false;
     } else if (t.id === "sheet") t.hidden = true;
   });
@@ -746,10 +755,12 @@ main{padding:0 16px 24px}h3{font-size:16px;margin:16px 4px 8px}h3 small{color:va
 .corner{grid-row:1;grid-column:1}.dh{grid-row:1;border-radius:8px;margin:2px}.dh b{color:var(--text);font-size:12px}
 .dh.now{background:var(--accent);color:#fff}.dh.now b{color:#fff}.pn{grid-column:1}.pn b{color:var(--text);font-size:12px}
 .cb{--c:#4f7cff;margin:1.5px;border-radius:8px;background:var(--c);color:#fff;padding:4px 3px;font-size:11px;line-height:1.25;overflow:hidden;text-align:center;word-break:break-all}
-.cb span{display:block;opacity:.9;font-size:10px}
+.cb{position:relative}.cb span{display:block;opacity:.9;font-size:10px}
+.cb .more{position:absolute;right:2px;bottom:2px;font-style:normal;font-size:9px;background:rgba(0,0,0,.25);border-radius:5px;padding:0 3px}
 #sheet{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:flex-end}#sheet[hidden]{display:none}
 #sheet .card{--c:#4f7cff;width:100%;background:var(--card);border-radius:18px 18px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));border-top:5px solid var(--c)}
 #sheet h2{margin:0 0 8px}#sheet p{margin:4px 0}#sheet small{color:var(--muted)}
+#sheet section+section{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}#sheet .note{white-space:pre-wrap}
 `;
 
 function timetableHTML(view) {
