@@ -130,9 +130,9 @@ export function save(data, { touch = true } = {}) {
 
 export function loadPrefs() {
   try {
-    return { widgetPage: 'today', widgetLarge: 'today', ...(JSON.parse(localStorage.getItem(PREFS_KEY)) || {}) };
+    return { widgetPage: 'today', widgetLarge: 'today', widgetTap: 'scriptable', ...(JSON.parse(localStorage.getItem(PREFS_KEY)) || {}) };
   } catch (e) {
-    return { widgetPage: 'today', widgetLarge: 'today' };
+    return { widgetPage: 'today', widgetLarge: 'today', widgetTap: 'scriptable' };
   }
 }
 

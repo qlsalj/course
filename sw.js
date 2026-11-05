@@ -36,10 +36,7 @@ const ASSETS = /*@ASSETS*/[
   'js/sheets/editor.js',
   'js/sheets/import.js',
   'js/sheets/widget.js',
-  'icons/icon.svg',
-  'icons/icon-180.png',
-  'icons/icon-192.png',
-  'icons/icon-512.png'
+  'icons/icon.svg'
 ]/*@END*/;
 
 self.addEventListener('install', (event) => {
@@ -65,6 +62,11 @@ self.addEventListener('activate', (event) => {
 function timeout(ms) {
   return new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms));
 }
+
+// 让页面能查询当前生效的版本（设置页里显示）
+self.addEventListener('message', (event) => {
+  if (event.data === 'version' && event.ports[0]) event.ports[0].postMessage(VERSION);
+});
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;

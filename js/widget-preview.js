@@ -149,24 +149,31 @@ function fixedDate(nowMs) {
   };
 }
 
-export function createScriptableEnv({ family = 'medium', parameter = '', now = Date.now(), screen = [390, 844] } = {}) {
-  const result = { widget: null, opened: [], logs: [] };
+export function createScriptableEnv({ family = 'medium', parameter = '', now = Date.now(), screen = [390, 844], inApp = false, query = {}, scriptName = '课表' } = {}) {
+  const result = { widget: null, opened: [], logs: [], webview: null };
+  class WebView {
+    constructor() { this.html = ''; this.shouldAllowRequest = null; result.webview = this; }
+    async loadHTML(html) { this.html = html; }
+    async loadURL(url) { this.url = url; }
+    async present() { this.presented = true; }
+  }
   const globals = {
     ListWidget, WidgetStack, WidgetText, WidgetDate, WidgetSpacer, WidgetImage,
     Color, Font, Size, Point, LinearGradient,
     Date: fixedDate(+now),
+    WebView,
     config: {
-      runsInWidget: true,
-      runsInApp: false,
+      runsInWidget: !inApp,
+      runsInApp: inApp,
       runsInAccessoryWidget: String(family).startsWith('accessory'),
       runsWithSiri: false,
       widgetFamily: family
     },
-    args: { widgetParameter: parameter || null, queryParameters: {}, plainTexts: [], urls: [] },
+    args: { widgetParameter: parameter || null, queryParameters: query, plainTexts: [], urls: [] },
     Script: {
       setWidget(w) { result.widget = w; },
       complete() {},
-      name() { return '课表'; }
+      name() { return scriptName; }
     },
     Safari: { open(url) { result.opened.push(url); }, openInApp: async (url) => { result.opened.push(url); } },
     Pasteboard: { copy() {}, paste() { return ''; } },

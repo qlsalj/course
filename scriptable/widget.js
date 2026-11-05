@@ -20,6 +20,8 @@ const APP_URL = /*@APP_URL*/"";
 const OPEN_PAGE = /*@PAGE*/"today";
 // 大号组件默认显示什么："today" 今日课程 / "week" 整周课表（单个组件可用 Parameter 覆盖）
 const LARGE_MODE = /*@LARGE*/"today";
+// 点击小组件："scriptable" 在 Scriptable 里直接打开课表（不联网，秒开）/ "safari" 用 Safari 打开网页版
+const TAP_MODE = /*@TAP*/"scriptable";
 const GENERATED_AT = /*@GENERATED*/"";
 const SNAPSHOT = /*@SNAPSHOT*/"";
 const DATA = /*@DATA*/null;
@@ -608,6 +610,177 @@ function nextRefresh() {
   return new Date(Math.min(...candidates.map((d) => d.getTime())) + 1000);
 }
 
+
+// ================= 点击小组件后在 Scriptable 里显示的完整课表 =================
+// 课表数据都在脚本里，用 WebView 渲染本地 HTML，不需要联网，所以打开很快、离线也能用。
+// 下面这个函数不在 Scriptable 里执行，而是原样（toString）注入到 WebView 页面中运行。
+function timetablePage(P) {
+  const D = P.data;
+  const DAYS = ["", "一", "二", "三", "四", "五", "六", "日"];
+  const parse = (s) => { const a = String(s).split("-").map(Number); return new Date(a[0], a[1] - 1, a[2]); };
+  const wd = (d) => (d.getDay() === 0 ? 7 : d.getDay());
+  const add = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+  const diff = (a, b) => Math.round((Date.UTC(a.getFullYear(), a.getMonth(), a.getDate()) - Date.UTC(b.getFullYear(), b.getMonth(), b.getDate())) / 864e5);
+  const first = add(parse(D.startDate), 1 - wd(parse(D.startDate)));
+  const today = new Date(P.today[0], P.today[1], P.today[2]);
+  const weekOf = (d) => Math.floor(diff(d, first) / 7) + 1;
+  const cur = weekOf(today);
+  const clamp = (w) => Math.min(Math.max(w, 1), D.totalWeeks);
+  const inWeek = (c, w) => !c.weeks.length || c.weeks.indexOf(w) >= 0;
+  const esc = (v) => String(v == null ? "" : v).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch]);
+  const time = (c) => { const a = D.periods[c.start - 1]; const b = D.periods[c.end - 1] || a; return a ? a[0] + "-" + b[1] : ""; };
+  const weekendUsed = D.courses.some((c) => c.day >= 6);
+  const days = weekendUsed ? [1, 2, 3, 4, 5, 6, 7] : [1, 2, 3, 4, 5];
+  const state = { tab: P.view === "week" ? "week" : "today", week: clamp(cur) };
+
+  function lessonsOn(date) {
+    const w = weekOf(date);
+    if (w < 1 || w > D.totalWeeks) return [];
+    return D.courses.filter((c) => c.day === wd(date) && inWeek(c, w)).sort((a, b) => a.start - b.start);
+  }
+  function dayLabel(n, date) {
+    if (n === 0) return "今天";
+    if (n === 1) return "明天";
+    if (n === 2) return "后天";
+    return "周" + DAYS[wd(date)] + " " + (date.getMonth() + 1) + "/" + date.getDate();
+  }
+  function card(c) {
+    return '<div class="lesson" style="--c:' + esc(c.color || "#4F7CFF") + '"><div class="t">' + esc(time(c)).replace("-", "<br>") +
+      '</div><div class="bar"></div><div class="m"><b>' + esc(c.name) + "</b><span>" +
+      esc([c.room, c.teacher].filter(Boolean).join(" · ")) + "</span></div></div>";
+  }
+  function todayHTML() {
+    let html = "";
+    let shown = 0;
+    for (let n = 0; n <= 14 && shown < 3; n++) {
+      const date = add(today, n);
+      const ls = lessonsOn(date);
+      if (!ls.length && n > 0) continue;
+      html += '<h3>' + dayLabel(n, date) + (ls.length ? "<small>" + ls.length + " 节</small>" : "") + "</h3>";
+      html += ls.length ? ls.map(card).join("") : '<p class="empty">今天没有课</p>';
+      shown++;
+    }
+    return html;
+  }
+  function weekHTML() {
+    const w = state.week;
+    const monday = add(first, (w - 1) * 7);
+    const rows = Math.max(D.periods.length, ...D.courses.map((c) => c.end));
+    let g = '<div class="grid" style="--days:' + days.length + ";--rows:" + rows + '"><div class="corner">' + (monday.getMonth() + 1) + "<br>月</div>";
+    days.forEach((d, i) => {
+      const date = add(monday, d - 1);
+      g += '<div class="dh' + (diff(date, today) === 0 ? " now" : "") + '" style="grid-column:' + (i + 2) + '"><b>周' + DAYS[d] + "</b>" + (date.getMonth() + 1) + "/" + date.getDate() + "</div>";
+    });
+    for (let p = 1; p <= rows; p++) {
+      const per = D.periods[p - 1];
+      g += '<div class="pn" style="grid-row:' + (p + 1) + '"><b>' + p + "</b>" + (per ? per[0] : "") + "</div>";
+    }
+    days.forEach((d, i) => {
+      // 互相重叠（含连锁重叠）的课合并成一个块，块覆盖所有这些课的节次，显示 +n，点开能看到全部
+      const list = D.courses.filter((c) => c.day === d && inWeek(c, w)).sort((a, b) => a.start - b.start || b.end - a.end);
+      const blocks = [];
+      list.forEach((c) => {
+        const last = blocks[blocks.length - 1];
+        if (last && c.start <= last.end) { last.items.push(c); last.end = Math.max(last.end, c.end); }
+        else blocks.push({ start: c.start, end: c.end, items: [c] });
+      });
+      blocks.forEach((b) => {
+        const c = b.items[0];
+        const ids = b.items.map((x) => D.courses.indexOf(x)).join(",");
+        g += '<div class="cb" data-i="' + ids + '" style="grid-column:' + (i + 2) + ";grid-row:" + (b.start + 1) + " / " + (b.end + 2) + ";--c:" + esc(c.color || "#4F7CFF") + '"><b>' + esc(c.name) + "</b>" +
+          (c.room ? "<span>@" + esc(c.room) + "</span>" : "") + (b.items.length > 1 ? '<i class="more">+' + (b.items.length - 1) + "</i>" : "") + "</div>";
+      });
+    });
+    return g + "</div>";
+  }
+  function render() {
+    const wl = cur < 1 ? "未开学" : cur > D.totalWeeks ? "假期中" : "第" + cur + "周";
+    let html = '<header><div><small>' + (today.getMonth() + 1) + "月" + today.getDate() + "日 周" + DAYS[wd(today)] + "</small><h1>" + esc(wl) + "</h1></div>" +
+      (P.appUrl ? '<a class="web" href="' + esc(P.appUrl) + '">网页版</a>' : "") + "</header>" +
+      '<nav><button data-tab="today" class="' + (state.tab === "today" ? "on" : "") + '">今天</button><button data-tab="week" class="' + (state.tab === "week" ? "on" : "") + '">课表</button></nav>';
+    if (state.tab === "week") {
+      html += '<div class="wk"><button data-w="-1"' + (state.week <= 1 ? " disabled" : "") + '>‹</button><span>第 ' + state.week + " 周" + (state.week === cur ? '<em>本周</em>' : "") +
+        '</span><button data-w="1"' + (state.week >= D.totalWeeks ? " disabled" : "") + ">›</button></div>" + weekHTML();
+    } else {
+      html += '<main>' + todayHTML() + "</main>";
+    }
+    html += '<div id="sheet" hidden></div>';
+    document.getElementById("app").innerHTML = html;
+  }
+  document.addEventListener("click", (e) => {
+    const t = e.target.closest("[data-tab],[data-w],[data-i],#sheet");
+    if (!t) return;
+    if (t.dataset.tab) { state.tab = t.dataset.tab; render(); }
+    else if (t.dataset.w) { state.week = clamp(state.week + Number(t.dataset.w)); render(); }
+    else if (t.dataset.i) {
+      const list = t.dataset.i.split(",").map((n) => D.courses[Number(n)]);
+      const sh = document.getElementById("sheet");
+      sh.innerHTML = '<div class="card" style="--c:' + esc(list[0].color) + '">' + list.map((c) =>
+        '<section style="--c:' + esc(c.color) + '"><h2>' + esc(c.name) + "</h2><p>周" + DAYS[c.day] + " 第" + c.start + (c.end > c.start ? "-" + c.end : "") + "节 " + esc(time(c)) + "</p>" +
+        (c.room ? "<p>教室：" + esc(c.room) + "</p>" : "") + (c.teacher ? "<p>教师：" + esc(c.teacher) + "</p>" : "") +
+        (c.note ? '<p class="note">备注：' + esc(c.note) + "</p>" : "") + "</section>").join("") + "<small>点任意处关闭</small></div>";
+      sh.hidden = false;
+    } else if (t.id === "sheet") t.hidden = true;
+  });
+  let sx = 0;
+  document.addEventListener("touchstart", (e) => { sx = e.touches[0].clientX; }, { passive: true });
+  document.addEventListener("touchend", (e) => {
+    const dx = e.changedTouches[0].clientX - sx;
+    if (state.tab === "week" && Math.abs(dx) > 60) { state.week = clamp(state.week + (dx < 0 ? 1 : -1)); render(); }
+  }, { passive: true });
+  render();
+}
+
+const TIMETABLE_CSS = `
+:root{--bg:#f4f5f9;--card:#fff;--text:#1c1c1e;--muted:#8a8a8e;--line:rgba(60,60,67,.12);--accent:#4f7cff;color-scheme:light dark}
+@media (prefers-color-scheme:dark){:root{--bg:#000;--card:#1c1c1e;--text:#f2f2f7;--muted:#98989d;--line:rgba(84,84,88,.5);--accent:#7c9dff}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.4 -apple-system,"PingFang SC",sans-serif;-webkit-text-size-adjust:100%}
+header{display:flex;align-items:flex-end;justify-content:space-between;padding:calc(env(safe-area-inset-top) + 14px) 16px 8px}
+header small{color:var(--muted);font-weight:600}h1{margin:2px 0 0;font-size:28px}
+.web{color:var(--accent);text-decoration:none;font-weight:600;font-size:14px;padding:6px 10px;border-radius:10px;background:var(--card)}
+nav{display:flex;margin:4px 16px 10px;background:var(--card);border-radius:10px;padding:2px}
+nav button{flex:1;border:0;background:none;padding:7px;border-radius:8px;font:inherit;font-weight:600;color:var(--muted)}
+nav button.on{background:var(--accent);color:#fff}
+main{padding:0 16px 24px}h3{font-size:16px;margin:16px 4px 8px}h3 small{color:var(--muted);font-weight:500;margin-left:8px;font-size:13px}
+.lesson{--c:#4f7cff;display:flex;gap:10px;align-items:center;background:var(--card);border-radius:14px;padding:10px 12px;margin-bottom:8px}
+.lesson .t{width:44px;text-align:center;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.lesson .bar{width:4px;align-self:stretch;border-radius:4px;background:var(--c)}
+.lesson .m{display:flex;flex-direction:column;min-width:0}.lesson .m span{font-size:13px;color:var(--muted)}
+.empty{color:var(--muted);padding:4px}
+.wk{display:flex;align-items:center;justify-content:center;gap:14px;margin:0 16px 6px}
+.wk button{border:0;background:var(--card);color:var(--text);width:34px;height:34px;border-radius:50%;font-size:20px}
+.wk button:disabled{opacity:.3}.wk span{font-weight:700;font-size:17px}.wk em{font-style:normal;color:var(--accent);font-size:12px;margin-left:6px}
+.grid{display:grid;grid-template-columns:28px repeat(var(--days),minmax(0,1fr));grid-template-rows:38px repeat(var(--rows),50px);padding:0 4px 24px}
+.corner,.dh,.pn{display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--muted);font-size:10px;line-height:1.2}
+.corner{grid-row:1;grid-column:1}.dh{grid-row:1;border-radius:8px;margin:2px}.dh b{color:var(--text);font-size:12px}
+.dh.now{background:var(--accent);color:#fff}.dh.now b{color:#fff}.pn{grid-column:1}.pn b{color:var(--text);font-size:12px}
+.cb{--c:#4f7cff;margin:1.5px;border-radius:8px;background:var(--c);color:#fff;padding:4px 3px;font-size:11px;line-height:1.25;overflow:hidden;text-align:center;word-break:break-all}
+.cb{position:relative}.cb span{display:block;opacity:.9;font-size:10px}
+.cb .more{position:absolute;right:2px;bottom:2px;font-style:normal;font-size:9px;background:rgba(0,0,0,.25);border-radius:5px;padding:0 3px}
+#sheet{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:flex-end}#sheet[hidden]{display:none}
+#sheet .card{--c:#4f7cff;width:100%;background:var(--card);border-radius:18px 18px 0 0;padding:18px 18px calc(18px + env(safe-area-inset-bottom));border-top:5px solid var(--c)}
+#sheet h2{margin:0 0 8px}#sheet p{margin:4px 0}#sheet small{color:var(--muted)}
+#sheet section+section{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}#sheet .note{white-space:pre-wrap}
+`;
+
+function timetableHTML(view) {
+  const appUrl = APP_URL ? `${APP_URL}#/${view === "week" ? "week" : "today"}` + (SNAPSHOT ? `?s=${SNAPSHOT}` : "") : "";
+  const payload = JSON.stringify({ data: DATA, view, today: [today.getFullYear(), today.getMonth(), today.getDate()], appUrl }).replace(/</g, "\\u003c");
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>${TIMETABLE_CSS}</style></head>` +
+    `<body><div id="app"></div><script>(${timetablePage.toString()})(${payload});</script></body></html>`;
+}
+
+async function presentTimetable(view) {
+  const wv = new WebView();
+  // 点「网页版」时用 Safari 打开，而不是在这个窗口里加载网页
+  wv.shouldAllowRequest = (req) => {
+    if (/^https?:/.test(req.url)) { Safari.open(req.url); return false; }
+    return true;
+  };
+  await wv.loadHTML(timetableHTML(view));
+  await wv.present(true);
+}
+
 // ================= 入口 =================
 async function createWidget(family, param) {
   if (param != null) PARAM = param;
@@ -619,7 +792,12 @@ async function createWidget(family, param) {
   const weekMode = isLarge && (PARAM === "week" || PARAM === "周" ||
     (LARGE_MODE === "week" && !["today", "今天", "tomorrow", "明天"].includes(PARAM)));
   const page = weekMode ? "week" : OPEN_PAGE;
-  if (APP_URL) w.url = `${APP_URL}#/${page}` + (SNAPSHOT ? `?s=${SNAPSHOT}` : "");
+  if (TAP_MODE === "scriptable" && DATA) {
+    // 运行本脚本并直接显示完整课表（见 presentTimetable），不需要联网
+    w.url = `scriptable:///run/${encodeURIComponent(Script.name())}?view=${page}`;
+  } else if (APP_URL) {
+    w.url = `${APP_URL}#/${page}` + (SNAPSHOT ? `?s=${SNAPSHOT}` : "");
+  }
   w.refreshAfterDate = nextRefresh();
   if (!DATA) {
     buildEmptyData(w);
@@ -639,19 +817,25 @@ async function createWidget(family, param) {
   return w;
 }
 
+const QUERY = (args && args.queryParameters) || {};
 if (config.runsInWidget) {
   Script.setWidget(await createWidget(config.widgetFamily));
+} else if (QUERY.view && DATA) {
+  // 点击小组件打开：直接显示完整课表
+  await presentTimetable(QUERY.view);
 } else {
   // 在 App 里直接运行：选择要预览的尺寸
   const alert = new Alert();
   alert.title = DATA ? `${DATA.name} · ${weekLabel()}` : "课表小组件";
   alert.message = GENERATED_AT ? `数据生成于 ${GENERATED_AT}` : "";
-  const options = [["小号", "small"], ["中号", "medium"], ["大号", "large"], ["大号 · 整周", "week"], ["打开完整课表", "open"]];
+  const options = [["查看完整课表", "timetable"], ["小号", "small"], ["中号", "medium"], ["大号", "large"], ["大号 · 整周", "week"], ["用 Safari 打开网页版", "open"]];
   options.forEach((o) => alert.addAction(o[0]));
   alert.addCancelAction("取消");
   const i = await alert.presentSheet();
   const choice = options[i] && options[i][1];
-  if (choice === "open") {
+  if (choice === "timetable") {
+    await presentTimetable(OPEN_PAGE);
+  } else if (choice === "open") {
     Safari.open(`${APP_URL}#/${OPEN_PAGE}` + (SNAPSHOT ? `?s=${SNAPSHOT}` : ""));
   } else if (choice === "week") {
     const w = await createWidget("large", "week");

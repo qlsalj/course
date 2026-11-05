@@ -25,6 +25,8 @@ test('build-site：版本号、完整文件清单、modulepreload', () => {
   for (const f of jsFiles) assert.ok(assets.includes(f), `清单缺少 ${f}`);
   assert.ok(assets.includes('./') && assets.includes('index.html') && assets.includes('scriptable/widget.js'));
   assert.ok(!assets.includes('sw.js'));
+  assert.ok(!assets.some((f) => /^icons\/.*\.png$/.test(f)), 'PNG 图标不应预缓存');
+  assert.ok(assets.includes('icons/icon.svg'));
   const index = readFileSync(join(out, 'index.html'), 'utf8');
   for (const f of jsFiles) assert.ok(index.includes(`<link rel="modulepreload" href="${f}">`), `缺少 modulepreload ${f}`);
   assert.ok(!index.includes('modulepreload" href="jw/'), 'jw/ 是普通脚本，不应 modulepreload');

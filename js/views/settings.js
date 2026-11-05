@@ -9,6 +9,40 @@ import { openWidgetSheet } from '../sheets/widget.js';
 export const VERSION = '1.0.0';
 export const REPO_URL = 'https://github.com/qlsalj/course';
 
+/** 向当前生效的 Service Worker 询问版本；旧版（没有这个接口）或超时返回 null */
+function askVersion(sw) {
+  return new Promise((resolve) => {
+    const ch = new MessageChannel();
+    const timer = setTimeout(() => resolve(null), 1500);
+    ch.port1.onmessage = (e) => { clearTimeout(timer); resolve(e.data); };
+    try { sw.postMessage('version', [ch.port2]); } catch (e) { clearTimeout(timer); resolve(null); }
+  });
+}
+
+/** 设置页底部的离线缓存状态，方便判断"为什么打开慢" */
+function cacheStatus() {
+  const el = h('p', { class: 'cache-status' }, '离线缓存：检查中…');
+  (async () => {
+    if (!('serviceWorker' in navigator)) { el.textContent = '离线缓存：当前浏览器不支持'; return; }
+    const reg = await navigator.serviceWorker.getRegistration();
+    const ctl = navigator.serviceWorker.controller;
+    const pending = reg && (reg.installing || reg.waiting);
+    let text;
+    if (!ctl) {
+      text = '离线缓存：还没启用，下次打开生效';
+    } else {
+      const v = await askVersion(ctl);
+      if (v === 'dev') text = '离线缓存：开发模式（网络优先）';
+      else if (v) text = `离线缓存：已启用（版本 ${v.slice(0, 8)}），打开时直接读取本机缓存`;
+      else text = '离线缓存：旧版（每次打开都要先联网，所以慢）';
+    }
+    if (pending) text += ' · 正在后台下载新版本，请保持 App 打开一会儿';
+    el.textContent = text;
+    if (reg && reg.installing) reg.installing.addEventListener('statechange', () => { el.textContent = text.replace(/ · .*$/, '') + ' · 新版本已下载，下次打开生效'; });
+  })().catch(() => { el.textContent = '离线缓存：状态未知'; });
+  return el;
+}
+
 function row(label, control, { onclick, hint } = {}) {
   const tag = onclick ? 'button' : 'div';
   return h(tag, { class: `row${onclick ? ' tappable' : ''}`, onclick },
@@ -103,6 +137,7 @@ export function renderSettings() {
     ),
     h('footer', { class: 'about' },
       h('p', null, `课表 v${VERSION} · 数据只保存在本机浏览器中`),
+      cacheStatus(),
       h('p', null, h('a', { href: REPO_URL, target: '_blank', rel: 'noopener' }, 'GitHub 开源'), ' · MIT License')
     )
   );

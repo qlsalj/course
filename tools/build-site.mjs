@@ -26,7 +26,9 @@ export function buildSite(srcRoot, outDir) {
       else files.push(relative(outDir, full).split(sep).join('/'));
     }
   })(outDir);
-  const assets = files.filter((f) => f !== 'sw.js' && f !== '.nojekyll' && !f.endsWith('.map'));
+  // PNG 图标只在「添加到主屏幕」时由 iOS 读取，运行时用不到，不放进离线缓存：
+  // 后台安装新版本时要下载的东西越少，越不容易在网络慢时被 iOS 中断
+  const assets = files.filter((f) => f !== 'sw.js' && f !== '.nojekyll' && !f.endsWith('.map') && !/^icons\/.*\.png$/.test(f));
 
   // modulepreload：js/ 下都是 ES 模块（jw/ 是普通脚本，不能 modulepreload）
   const modules = assets.filter((f) => f.startsWith('js/') && f.endsWith('.js'));
